@@ -1,6 +1,9 @@
 ## Erlang VM flags for the release (see `mix help release`).
 
-## Scheduler busy-waiting stays at the BEAM defaults. Turning it off (+sbwt/+sbwtdcpu/+sbwtdio
-## none) saves a little CPU when idle but makes every SQLite call (a dirty-IO NIF) pay for
-## waking a sleeping thread and then its scheduler again: ~25% fewer message posts on 4 CPUs
-## (bench/PERF.md).
+## Dirty schedulers don't busy-wait. Every SQLite call is a dirty-IO NIF, so with the default
+## spinning, idle dirty threads (10 IO + one CPU per core) keep the CPUs busy and slow the request
+## processes down. Natively on 4 pinned CPUs this gives +6–13% at 16/64 clients on every DB route
+## and about -4% at 1 client. Normal schedulers keep their default busy-wait: turning it off too
+## measured no better natively and ~25% worse for posts under Docker Desktop (bench/PERF.md).
++sbwtdcpu none
++sbwtdio none
