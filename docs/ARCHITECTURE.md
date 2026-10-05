@@ -23,6 +23,9 @@ database and Active Storage directory, unchanged. `docs/SPEC.md` is the contract
 | `CampfireWeb.Components` | `<.image src="x.svg">`, `<.avatar user>`, `avatar_path/1`, `<.local_datetime>`, `epoch_ms/1`, `<.csrf_input>`, `<.sidebar_frame>`, `<.translation_button>`, `<.account_logo>` |
 | `CampfireWeb.Assets` | compile-time Propshaft manifest: `path/1`, Rails-identical stylesheet + importmap tags |
 | `CampfireWeb.RateLimiter` | ETS fixed-window counters (`hit/3`) |
+| `CampfireWeb.Cable` | Action Cable: `broadcast(stream, html_iodata \| map)` (encode once, local PubSub fan-out) and stream-name helpers (`room_messages_stream/1`, `user_rooms_stream/1`, `unreads_stream/1`, `reads_stream/1`) |
+| `CampfireWeb.Cable.{Upgrade, Socket, Channels, Pinger}` | `/cable` plug (origin, subprotocol, cookie auth) → one WebSock process per connection; channel authorization/actions; one 3 s ping ticker |
+| `Campfire.Rooms.Presence` | `Membership::Connectable` as atomic `UPDATE`s; `cutoff/0` = "connected" threshold for unread marking |
 
 ## Database
 
@@ -48,8 +51,9 @@ for raw SQL): comparisons are on TEXT. In tests the Replica reads through `Campf
 - Reads on `Replica`, writes on `Repo`; preload explicitly; no N+1 in partials.
 - Anything that updates a `users` row calls `Campfire.Accounts.SessionCache.forget_user/1`;
   changing the account calls `Accounts.reload_account/0`.
-- Cable: subscribe each socket to `"user_connections:#{user_id}"` (PubSub, local) and honour
-  `{:disconnect, reconnect: true}` (sent on sign-out). Authenticate the upgrade with `UserAuth.fetch_current_user/2`.
+- Cable: broadcast after commit with `CampfireWeb.Cable.broadcast/2` (render the HTML once; never
+  per recipient). To drop a user's sockets (sign-out, membership removal) call
+  `UserAuth.disconnect_cable/1`: every socket follows `"user_connections:#{user_id}"`.
 - Responses are gzipped by Bandit (`Accept-Encoding`). For already-compressed bodies (webp, png)
   set `content-encoding`/`cache-control: no-transform` or use `send_file` (not compressed).
 - Signed values (avatar tokens, stream names) via `Campfire.Signing`, keyed from `SECRET_KEY_BASE`.

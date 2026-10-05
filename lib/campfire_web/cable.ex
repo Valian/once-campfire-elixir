@@ -27,6 +27,18 @@ defmodule CampfireWeb.Cable do
     Phoenix.PubSub.local_broadcast(@pubsub, topic(stream), {:cable, stream, encode(payload)})
   end
 
+  @doc """
+  `broadcast/2` of one payload to several streams (e.g. every member's unreads), encoded once.
+  """
+  @spec broadcast_many([String.t()], iodata() | map()) :: :ok
+  def broadcast_many(streams, payload) when is_list(streams) do
+    json = encode(payload)
+
+    Enum.each(streams, fn stream ->
+      Phoenix.PubSub.local_broadcast(@pubsub, topic(stream), {:cable, stream, json})
+    end)
+  end
+
   @doc "The payload's JSON, as one binary that all recipients share."
   @spec encode(iodata() | map()) :: binary()
   def encode(payload) when is_map(payload), do: Jason.encode!(payload)

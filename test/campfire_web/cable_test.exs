@@ -248,6 +248,15 @@ defmodule CampfireWeb.CableTest do
       assert {:text, %{"type" => "ping"}} = CableClient.recv(client)
     end
 
+    test "broadcast_many: one payload to several streams", ctx do
+      client = connect!(ctx)
+      assert confirmed?(subscribe!(client, ~s({"channel":"UnreadRoomsChannel"})))
+
+      streams = [Cable.unreads_stream(ctx.david.id), Cable.unreads_stream(-1)]
+      Cable.broadcast_many(streams, %{roomId: 1})
+      assert {:text, %{"message" => %{"roomId" => 1}}} = CableClient.recv_message(client)
+    end
+
     test "typing notifications reach the room's typists", ctx do
       a = connect!(ctx)
       b = connect!(ctx)
