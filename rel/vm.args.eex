@@ -1,6 +1,6 @@
 ## Erlang VM flags for the release (see `mix help release`).
 
-## Don't busy-wait idle schedulers: under a container CPU quota spinning burns the quota.
-+sbwt none
-+sbwtdcpu none
-+sbwtdio none
+## Scheduler busy-waiting stays at the BEAM defaults. Turning it off (+sbwt/+sbwtdcpu/+sbwtdio
+## none) saves a little CPU when idle but makes every SQLite call (a dirty-IO NIF) pay for
+## waking a sleeping thread and then its scheduler again: ~25% fewer message posts on 4 CPUs
+## (bench/PERF.md).
