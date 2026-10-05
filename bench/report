@@ -54,7 +54,13 @@ table("Startup and memory", ["metric"] + apps, [
         ("cold start to /up (ms)", lambda r: r["cold_start_ms"]),
         ("idle memory (MB)", lambda r: r["memory"]["idle_current_mb"]),
         ("peak memory (MB)", lambda r: r["memory"]["cgroup_peak_mb"]),
-    ]])
+        # bench/run-native: the app's process tree from /proc (Redis, external, separately)
+        ("idle PSS (MB)", lambda r: r["memory"]["idle_pss_mb"]),
+        ("peak PSS (MB)", lambda r: r["memory"]["peak_pss_mb"]),
+        ("idle RSS (MB)", lambda r: r["memory"]["idle_rss_mb"]),
+        ("peak RSS (MB)", lambda r: r["memory"]["peak_rss_mb"]),
+        ("external Redis RSS at end (MB)", lambda r: r["memory"]["redis_rss_mb_end"]),
+    ] if any(get(r, fn) is not None for a in apps for r in runs[a])])
 
 keys = []
 for a in apps:

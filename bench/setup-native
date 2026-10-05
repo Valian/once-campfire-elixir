@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# Build everything bench/run-native needs, natively on Linux (x86_64), with toolchains from mise:
+#   bench/loadgen         cargo build --release                         (rust@stable)
+#   reference             once-campfire @ REF_COMMIT: bundle install (deployment, without development),
+#                         assets:precompile                             (ruby@<.ruby-version>)
+#   elixir-official       basecamp/once-campfire-elixir @ ELIXIR_COMMIT, as its Dockerfile.dev + Dockerfile:
+#                         C helpers against the system libvips/gumbo, assets exported from the reference
+#                         checkout (bin/export-assets copies the same files out of the Rails image),
+#                         MIX_ENV=prod EXQLITE_USE_SYSTEM=1 mix release  (erlang@ERLANG, elixir@ELIXIR)
+#   ours                  MIX_ENV=prod mix release in this checkout      (same toolchain)
+#
+#   bench/setup-native [loadgen|reference|elixir-official|ours ...]     # default: all
+#
+# System packages (apt): build-essential pkg-config libssl-dev libyaml-dev libsqlite3-dev libvips-dev
+# libjemalloc2 ffmpeg. Redis is not built here: run-native uses REDIS_URL (e.g. a redis:7 container).
+# Env: REFERENCE_DIR, ELIXIR_OFFICIAL_DIR (default bench/.cache/once-campfire{,-elixir}), REF_COMMIT,
+#      ELIXIR_COMMIT, ERLANG (28.5), ELIXIR (1.19.5-otp-28)
+set -euo pipefail
+
+BENCH=$(cd "$(dirname "$0")" && pwd)
+ROOT=$(dirname "$BENCH")
+REF_DIR=${REFERENCE_DIR:-$BENCH/.cache/once-campfire}
+OFF_DIR=${ELIXIR_OFFICIAL_DIR:-$BENCH/.cache/once-campfire-elixir}
+REF_COMMIT=${REF_COMMIT:-90b330024dec3e757c79b6a7e6568f93da8e3148}
+ELIXIR_COMMIT=${ELIXIR_COMMIT:-b6b82e50a653c4060136bb04e805eb78fd76ba10}
+ERLANG=${ERLANG:-28.5}
+ELIXIR=${ELIXIR:-1.19.5-otp-28}
+BEAM=(mise exec "erlang@$ERLANG" "elixir@$ELIXIR" --)
+STEPS=${*:-loadgen reference elixir-official ours}
+
+log() { echo "[setup-native $(date +%T)] $*" >&2; }
+
+checkout() { # dir url commit
+  [ -d "$1/.git" ] || git clone -q "$2" "$1"
+  git -C "$1" cat-file -e "$3^{commit}" 2>/dev/null || git -C "$1" fetch -q origin
+  git -C "$1" -c advice.detachedHead=false checkout -q "$3"
+}
+
+for step in $STEPS; do
+  case $step in
+  loadgen)
+    log "loadgen"
+    (cd "$BENCH/loadgen" && mise exec rust@stable -- cargo build --release -q)
+    ;;
+  reference)
+    log "reference: $REF_DIR @ $REF_COMMIT"
+    checkout "$REF_DIR" https://github.com/basecamp/once-campfire.git "$REF_COMMIT"
+    RUBY=(mise exec "ruby@$(cat "$REF_DIR/.ruby-version")" --)
+    cd "$REF_DIR"
+    "${RUBY[@]}" bundle config set --local deployment true
+    "${RUBY[@]}" bundle config set --local without development
+    "${RUBY[@]}" bundle install -j4 --quiet
+    RAILS_ENV=production SECRET_KEY_BASE_DUMMY=1 "${RUBY[@]}" bin/rails assets:precompile >/dev/null
+    ls -d vendor/bundle/ruby/*/gems/thruster-*-linux >&2
+    ;;
+  elixir-official)
+    log "elixir-official: $OFF_DIR @ $ELIXIR_COMMIT"
+    [ -d "$REF_DIR/public/assets" ] || { echo "build the reference first (its compiled assets are exported)" >&2; exit 1; }
+    checkout "$OFF_DIR" https://github.com/basecamp/once-campfire-elixir.git "$ELIXIR_COMMIT"
+    cd "$OFF_DIR"
+    git submodule update -q --init reference
+    [ "$(git -C reference rev-parse HEAD)" = "$(git -C "$REF_DIR" rev-parse HEAD)" ] ||
+      { echo "reference submodule and REFERENCE_DIR differ" >&2; exit 1; }
+    # Dockerfile.dev: the two C helpers.
+    mkdir -p .native/bin
+    cc -O2 -Wall -Wextra -Werror native/vips.c $(pkg-config --cflags --libs vips) -o .native/bin/campfire-vips
+    cc -O2 -std=c99 -Inative/vendor/gumbo/src native/html.c native/vendor/gumbo/src/*.c -o .native/bin/campfire-html
+    # bin/export-assets, from the reference checkout instead of the image.
+    mkdir -p priv/static/assets priv/public priv/pwa priv/images/logos
+    cp -a "$REF_DIR/public/assets/." priv/static/assets/
+    for f in robots.txt 404.html 422.html 500.html 502.html; do cp "$REF_DIR/public/$f" priv/public/; done
+    cp reference/app/views/pwa/manifest.json.erb reference/app/views/pwa/service_worker.js priv/pwa/
+    cp reference/app/assets/images/logos/app-icon.png reference/app/assets/images/logos/app-icon-192.png priv/images/logos/
+    cp reference/app/assets/images/default-bot-avatar.svg priv/images/
+    # Dockerfile: the release.
+    "${BEAM[@]}" mix local.hex --force --if-missing >/dev/null
+    "${BEAM[@]}" mix local.rebar --force --if-missing >/dev/null
+    MIX_ENV=prod "${BEAM[@]}" mix deps.get
+    MIX_ENV=prod EXQLITE_USE_SYSTEM=1 "${BEAM[@]}" sh -c 'mix deps.compile && mix compile --warnings-as-errors && mix release --overwrite'
+    ;;
+  ours)
+    log "ours: $ROOT @ $(git -C "$ROOT" rev-parse --short HEAD)"
+    cd "$ROOT"
+    "${BEAM[@]}" mix local.hex --force --if-missing >/dev/null
+    "${BEAM[@]}" mix local.rebar --force --if-missing >/dev/null
+    MIX_ENV=prod "${BEAM[@]}" mix deps.get --only prod
+    MIX_ENV=prod "${BEAM[@]}" sh -c 'mix compile --warnings-as-errors && mix release --overwrite'
+    ;;
+  *) echo "unknown step $step" >&2; exit 2 ;;
+  esac
+done
+log "done"

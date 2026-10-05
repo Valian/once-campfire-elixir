@@ -1,0 +1,494 @@
+#!/usr/bin/env python3
+"""Benchmark Campfire implementations side by side as bare processes on Linux (no Docker for the apps).
+
+  bench/setup-native                                        # once: build all three apps + bench/loadgen
+  bench/run-native [--apps reference,elixir-official,ours] [--reps 3] [--out DIR] [--user-agent UA]
+  bench/report DIR
+
+The Linux counterpart of bench/run, closer to once-campfire-rust's bench/run: same seed, same suites
+(bench/lib/common.py), but each app runs natively as its production process model, pinned with
+taskset to SERVER_CPUS, while bench/loadgen runs pinned to LOADGEN_CPUS (disjoint physical cores)
+over loopback. Each rep, for each app in turn (never two at once; the order alternates between
+reps): a fresh copy of bench/seed in a run dir, the app started from nothing (cold start = until
+GET /up answers 200), idle memory after SETTLE_SECS, then the HTTP, Action Cable fan-out and upload
+suites, with the app's memory sampled every 250 ms throughout. Then its whole process tree (its
+session) is killed.
+
+Apps (see bench/README.md, "Native Linux"):
+  reference        Rails at REFERENCE_DIR: `bundle exec thrust bin/start-app` (Thruster on PORT,
+                   Puma on PORT+1) + `resque-pool`, as its Procfile/bin/boot, jemalloc preloaded.
+                   Rails.root/storage is a symlink to the run dir.
+  elixir-official  basecamp/once-campfire-elixir's release at ELIXIR_OFFICIAL_DIR behind Thruster,
+                   as its bin/container-start (helpers campfire-vips/campfire-html on PATH).
+  ours             this repo's release (`_build/prod/rel/campfire`), serving PORT itself.
+Redis is NOT part of any app's process tree here: the reference and the official port both use the
+external one at REDIS_URL (a Docker container on the host), FLUSHALLed before every run; its memory
+is recorded separately. In the Docker images it runs inside the container.
+
+Memory is the sum over the app's processes (its session: workers, Thruster, resque, helpers) of
+Pss and Rss from /proc/PID/smaps_rollup, in MB: `idle_pss_mb` after settling, `peak_pss_mb` the
+maximum of the 250 ms samples over the whole run (no page cache, unlike the Docker cgroup numbers).
+
+Knobs (env): SERVER_CPUS=4-7 LOADGEN_CPUS=8-11 HARNESS_CPUS=0-3 (this script, the memory sampler)
+  HTTP_SECS=8 HTTP_CONCS="1 16 64" CABLE_CLIENTS="100 500 1000" CABLE_TPUT_SECS=15 CABLE_POSTERS=4
+  UPLOAD_REPS=5 PORT=4390 (and PORT+1) SUITES="http cable upload" SETTLE_SECS=10 LOAD_MAX=3
+  LOAD_WAIT_SECS=300 REDIS_URL=redis://127.0.0.1:6379/0 EXTRA_ENV="K=V ..." (every app)
+  REFERENCE_DIR, ELIXIR_OFFICIAL_DIR (default bench/.cache/once-campfire{,-elixir}), RUBY_VERSION
+  (default: REFERENCE_DIR/.ruby-version, run through `mise exec ruby@...`), JEMALLOC=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+"""
+import argparse, glob, json, os, resource, shutil, signal, socket, subprocess, sys, threading, time, urllib.request
+from datetime import datetime
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+from common import (BENCH, SEED, LOADGEN, E, HTTP_SECS, HTTP_CONCS, CABLE_CLIENTS, PORT, SUITES, SETTLE_SECS,
+                    EXTRA_ENV, BASE, log, cpuset_size, app_env, neuter_deliveries, run_suites, load_labels, write_report)
+
+ROOT = os.path.dirname(BENCH)
+SERVER_CPUS = E("SERVER_CPUS", "4-7")
+LOADGEN_CPUS = E("LOADGEN_CPUS", "8-11")
+HARNESS_CPUS = E("HARNESS_CPUS", "0-3")
+NCPU = cpuset_size(SERVER_CPUS)
+LOAD_MAX = float(E("LOAD_MAX", "3"))
+LOAD_WAIT_SECS = int(E("LOAD_WAIT_SECS", "300"))
+REDIS_URL = E("REDIS_URL", "redis://127.0.0.1:6379/0")
+REFERENCE_DIR = os.path.abspath(E("REFERENCE_DIR", os.path.join(BENCH, ".cache", "once-campfire")))
+OFFICIAL_DIR = os.path.abspath(E("ELIXIR_OFFICIAL_DIR", os.path.join(BENCH, ".cache", "once-campfire-elixir")))
+OURS_REL = os.path.join(ROOT, "_build", "prod", "rel", "campfire")
+OFFICIAL_REL = os.path.join(OFFICIAL_DIR, "_build", "prod", "rel", "campfire")
+OFFICIAL_BIN = os.path.join(OFFICIAL_DIR, ".native", "bin")   # campfire-vips, campfire-html (bench/setup-native)
+JEMALLOC = E("JEMALLOC", "/usr/lib/x86_64-linux-gnu/libjemalloc.so.2")
+# Both Elixir apps: schedulers and dirty CPU schedulers explicitly = the pinned CPU count (dirty IO left
+# at its default). taskset stays the actual limit for every app; this only fixes the BEAM's sizing.
+ERL_OPTIONS = E("ELIXIR_ERL_OPTIONS", f"+S {NCPU}:{NCPU} +SDcpu {NCPU}:{NCPU}")
+APPS = ("reference", "elixir-official", "ours")
+UA = []
+
+
+def sh(*cmd, check=True, **kw):
+    return subprocess.run(cmd, check=check, capture_output=True, text=True, **kw).stdout.strip()
+
+
+def lg(*args, stderr=None):
+    out = subprocess.run(["taskset", "-c", LOADGEN_CPUS, LOADGEN, *map(str, args), *UA], check=True,
+                         stdout=subprocess.PIPE, stderr=stderr, text=True).stdout
+    return json.loads(out)
+
+
+def ruby_bin():
+    version = E("RUBY_VERSION") or open(os.path.join(REFERENCE_DIR, ".ruby-version")).read().strip()
+    return os.path.join(sh("mise", "where", f"ruby@{version}"), "bin")
+
+
+def thrust():
+    """Thruster from the reference's bundle (the official image copies the same binary out of the Rails image)."""
+    found = sorted(glob.glob(os.path.join(REFERENCE_DIR, "vendor", "bundle", "ruby", "*", "gems", "thruster-*-linux", "exe", "*-linux", "thrust")))
+    if not found:
+        raise SystemExit("thrust not found in the reference's bundle: run bench/setup-native")
+    return found[-1]
+
+
+# --- Redis (external; reached over a socket, no redis-cli or Docker needed) ---------------------
+
+def redis(*cmd):
+    host, port = REDIS_URL.split("//")[1].split("/")[0].split(":")
+    with socket.create_connection((host, int(port)), timeout=5) as s:
+        s.sendall(f"*{len(cmd)}\r\n".encode() + b"".join(f"${len(c)}\r\n{c}\r\n".encode() for c in cmd))
+        f = s.makefile("rb")
+        line = f.readline()
+        if line[:1] == b"$":
+            return f.read(int(line[1:])).decode()
+        if line[:1] == b"-":
+            raise RuntimeError(line.decode().strip())
+        return line[1:].decode().strip()
+
+
+def redis_info(section):
+    return dict(l.split(":", 1) for l in redis("INFO", section).splitlines() if ":" in l)
+
+
+def redis_rss_mb():
+    try:
+        return round(int(redis_info("memory")["used_memory_rss"]) / 1048576, 1)
+    except Exception:
+        return None
+
+
+# --- processes -------------------------------------------------------------------------------
+
+def session_pids(sid):
+    """Every live process in the session `sid` (the app's launcher is a session leader)."""
+    pids = []
+    for d in os.listdir("/proc"):
+        if not d.isdigit():
+            continue
+        try:
+            stat = open(f"/proc/{d}/stat").read()
+        except OSError:
+            continue
+        fields = stat[stat.rindex(")") + 2:].split()   # after "pid (comm) "
+        if int(fields[3]) == sid and fields[0] != "Z":  # fields: state ppid pgrp session ...
+            pids.append(int(d))
+    return pids
+
+
+def role(cmd):
+    for needle, r in (("thrust", "thrust"), ("puma", "puma"), ("resque", "jobs"), ("beam.smp", "beam"),
+                      ("campfire-vips", "helpers"), ("campfire-html", "helpers"), ("ffmpeg", "helpers")):
+        if needle in cmd:
+            return r
+    return "other"
+
+
+def snapshot(sid):
+    """{role: {pss_mb, rss_mb, procs}} plus totals, from smaps_rollup."""
+    roles, total = {}, {"pss_mb": 0.0, "rss_mb": 0.0, "procs": 0}
+    for pid in session_pids(sid):
+        try:
+            cmd = open(f"/proc/{pid}/cmdline").read().replace("\0", " ")
+            m = {}
+            for line in open(f"/proc/{pid}/smaps_rollup"):
+                k, _, v = line.partition(":")
+                if k in ("Rss", "Pss"):
+                    m[k] = int(v.split()[0]) / 1024
+        except OSError:
+            continue
+        r = roles.setdefault(role(cmd), {"pss_mb": 0.0, "rss_mb": 0.0, "procs": 0})
+        for d in (r, total):
+            d["pss_mb"] += m.get("Pss", 0); d["rss_mb"] += m.get("Rss", 0); d["procs"] += 1
+    return total, roles
+
+
+def process_model(sid):
+    """What actually runs: role, threads, cmdline (and BEAM scheduler threads), for the results JSON."""
+    procs = []
+    for pid in sorted(session_pids(sid)):
+        try:
+            cmd = open(f"/proc/{pid}/cmdline").read().replace("\0", " ").strip()
+            comms = [open(t + "/comm").read().strip() for t in glob.glob(f"/proc/{pid}/task/*")]
+        except OSError:
+            continue
+        p = {"role": role(cmd), "threads": len(comms), "cmd": cmd[:160]}
+        if "beam.smp" in cmd:  # thread names are cut to 15 chars: N_scheduler, N_dirty_cpu_sch, N_dirty_io_sche
+            p["schedulers"] = sum(c.endswith("_scheduler") for c in comms)
+            p["dirty_cpu_schedulers"] = sum("_dirty_cpu_" in c for c in comms)
+            p["dirty_io_schedulers"] = sum("_dirty_io_" in c for c in comms)
+        if "puma" in cmd:
+            p["puma"] = "worker" if "cluster worker" in cmd else "master"
+        if "resque" in cmd:
+            p["resque"] = "pool" if "pool" in cmd else "worker"
+        procs.append(p)
+    return procs
+
+
+def observed_model(model):
+    """One line: what the process tree really is (Puma workers, resque workers, BEAM schedulers by thread count)."""
+    parts = []
+    workers = [p for p in model if p.get("puma") == "worker"]
+    if any("puma" in p for p in model):
+        max_threads = dict(kv.split("=", 1) for kv in app_env(NCPU))["RAILS_MAX_THREADS"]
+        parts.append(f"puma workers {len(workers)} (OS threads per worker {[p['threads'] for p in workers]}, "
+                     f"RAILS_MAX_THREADS {max_threads})")
+    if any("resque" in p for p in model):
+        parts.append(f"resque workers {sum(p.get('resque') == 'worker' for p in model)}")
+    for p in model:
+        if "schedulers" in p:
+            parts.append(f"beam threads: {p['schedulers']} schedulers, {p['dirty_cpu_schedulers']} dirty cpu, "
+                         f"{p['dirty_io_schedulers']} dirty io")
+    parts.append(f"{len(model)} processes: " + ", ".join(sorted({p['role'] for p in model})))
+    return "; ".join(parts)
+
+
+def beam_check(rel):
+    """Scheduler counts as the app's VM sees them: a one-off `bin/campfire eval` under the same taskset and
+    ELIXIR_ERL_OPTIONS (distribution is off, so the running node can't be asked over rpc)."""
+    run = os.path.join(BENCH, ".work", "beam-check")
+    shutil.rmtree(run, ignore_errors=True)
+    for d in ("tmp", "home"):
+        os.makedirs(os.path.join(run, d))
+    env = {**base_env(run), "RELEASE_DISTRIBUTION": "none", "RELEASE_TMP": os.path.join(run, "tmp"),
+           "ELIXIR_ERL_OPTIONS": ERL_OPTIONS}
+    si = lambda k: f"#{{:erlang.system_info(:{k})}}"
+    expr = (f'IO.puts("schedulers_online={si("schedulers_online")}/{si("schedulers")} '
+            f'dirty_cpu_schedulers_online={si("dirty_cpu_schedulers_online")} dirty_io_schedulers={si("dirty_io_schedulers")} '
+            f'otp={si("otp_release")} elixir=#{{System.version()}}")')
+    r = subprocess.run(["taskset", "-c", SERVER_CPUS, os.path.join(rel, "bin", "campfire"), "eval", expr],
+                       env=env, capture_output=True, text=True, timeout=60)
+    shutil.rmtree(run, ignore_errors=True)
+    last = (r.stdout.strip().splitlines() or ["?"])[-1]
+    return last + (f" (exit {r.returncode}: {r.stderr.strip()[-300:]})" if r.returncode else "")
+
+
+class Sampler(threading.Thread):
+    def __init__(self, sid):
+        super().__init__(daemon=True)
+        self.sid, self.stop, self.peak, self.roles = sid, threading.Event(), {"pss_mb": 0.0, "rss_mb": 0.0}, {}
+
+    def run(self):
+        while not self.stop.is_set():
+            total, roles = snapshot(self.sid)
+            for k in ("pss_mb", "rss_mb"):
+                self.peak[k] = max(self.peak[k], total[k])
+            for r, v in roles.items():
+                cur = self.roles.setdefault(r, {"peak_pss_mb": 0.0, "procs": 0})
+                cur["peak_pss_mb"] = round(max(cur["peak_pss_mb"], v["pss_mb"]), 1)
+                cur["procs"] = max(cur["procs"], v["procs"])
+            self.stop.wait(0.25)
+
+
+def kill_session(sid, grace=10):
+    pids = session_pids(sid)
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        for pid in pids:
+            try:
+                os.kill(pid, sig)
+            except ProcessLookupError:
+                pass
+        deadline = time.time() + grace
+        while time.time() < deadline:
+            pids = session_pids(sid)
+            if not pids:
+                return
+            time.sleep(0.1)
+        log(f"session {sid}: {len(pids)} process(es) survived {sig.name}")
+    if session_pids(sid):
+        raise SystemExit(f"could not kill session {sid}")
+
+
+def port_free(port):
+    with socket.socket() as s:
+        return s.connect_ex(("127.0.0.1", port)) != 0
+
+
+def up():
+    try:
+        return urllib.request.urlopen(BASE + "/up", timeout=2).status == 200
+    except Exception:
+        return False
+
+
+# --- the apps --------------------------------------------------------------------------------
+
+def base_env(run):
+    env = {"PATH": "/usr/local/bin:/usr/bin:/bin", "HOME": os.path.join(run, "home"), "LANG": "C.UTF-8",
+           "USER": os.environ.get("USER", ""), "TMPDIR": os.path.join(run, "tmp")}
+    env.update(dict(kv.split("=", 1) for kv in app_env(NCPU)))
+    return env
+
+
+def launch(app, run):
+    """(argv, env, cwd) for the app's production process model, with its state in `run`."""
+    env = base_env(run)
+    db, files = os.path.join(run, "db", "production.sqlite3"), os.path.join(run, "files")
+    timeouts = {"HTTP_IDLE_TIMEOUT": "60", "HTTP_READ_TIMEOUT": "300", "HTTP_WRITE_TIMEOUT": "300"}  # both images' ENV
+    if app == "reference":
+        # Rails.root/storage/{db,files} (config/database.yml, config/storage.yml) -> the run dir.
+        link = os.path.join(REFERENCE_DIR, "storage")
+        if os.path.islink(link) or os.path.exists(link):
+            os.remove(link) if os.path.islink(link) else shutil.rmtree(link)
+        os.symlink(run, link)
+        env.update(timeouts)
+        env.update({"PATH": ruby_bin() + ":" + env["PATH"], "BUNDLE_DEPLOYMENT": "1", "BUNDLE_WITHOUT": "development",
+                    "LD_PRELOAD": JEMALLOC, "REDIS_URL": REDIS_URL,
+                    "HTTP_PORT": str(PORT), "TARGET_PORT": str(PORT + 1)})
+        # Procfile minus its redis line (Redis is external), supervised by bash instead of bin/boot.
+        cmd = ("bundle exec thrust bin/start-app & "
+               "FORK_PER_JOB=false INTERVAL=0.1 bundle exec resque-pool & wait")
+        return ["bash", "-c", cmd], env, REFERENCE_DIR
+    if app == "elixir-official":
+        # bin/container-start, minus starting its own redis-server (REDIS_URL is set).
+        env.update(timeouts)
+        env.update({"PATH": OFFICIAL_BIN + ":" + env["PATH"], "REDIS_URL": REDIS_URL, "CAMPFIRE_WORKER": "1",
+                    "HTTP_PORT": str(PORT), "TARGET_PORT": str(PORT + 1), "CAMPFIRE_BIND": "loopback",
+                    "THRUSTER_STORAGE_PATH": os.path.join(run, "thruster"),
+                    "DATABASE_PATH": db, "STORAGE_PATH": files, "RAILS_ENV": "production",
+                    "RELEASE_DISTRIBUTION": "none", "RELEASE_TMP": os.path.join(run, "tmp"),
+                    "ELIXIR_ERL_OPTIONS": ERL_OPTIONS})
+        return [thrust(), os.path.join(OFFICIAL_REL, "bin", "campfire"), "start"], env, run
+    # ours: the release serves HTTP_PORT itself (as the image's CMD; env as its Dockerfile).
+    env.update({"HTTP_PORT": str(PORT), "DATABASE_PATH": db, "STORAGE_PATH": files,
+                "RELEASE_DISTRIBUTION": "none", "RELEASE_TMP": os.path.join(run, "tmp"),
+                "ELIXIR_ERL_OPTIONS": ERL_OPTIONS})
+    return [os.path.join(OURS_REL, "bin", "campfire"), "start"], env, run
+
+
+def copy_seed(run):
+    shutil.rmtree(run, ignore_errors=True)
+    for d in ("db", "tmp", "home", "thruster"):
+        os.makedirs(os.path.join(run, d))
+    shutil.copy2(os.path.join(SEED, "db", "production.sqlite3"), os.path.join(run, "db"))
+    subprocess.run(["cp", "-a", "--reflink=auto", os.path.join(SEED, "storage"), os.path.join(run, "files")], check=True)
+    neuter_deliveries(os.path.join(run, "db", "production.sqlite3"))
+
+
+def start_app(app, run, logf):
+    for p in (PORT, PORT + 1):
+        if not port_free(p):
+            raise SystemExit(f"port {p} is in use")
+    copy_seed(run)
+    if app != "ours":
+        redis("FLUSHALL")
+    argv, env, cwd = launch(app, run)
+    os.sync()
+    t0 = time.time()
+    proc = subprocess.Popen(["taskset", "-c", SERVER_CPUS, *argv], env=env, cwd=cwd, stdin=subprocess.DEVNULL,
+                            stdout=logf, stderr=subprocess.STDOUT, start_new_session=True)
+    while time.time() - t0 < 120:
+        if up():
+            return proc, round((time.time() - t0) * 1000)
+        if proc.poll() is not None:
+            break
+        time.sleep(0.02)
+    kill_session(proc.pid)
+    logf.flush()
+    print(open(logf.name).read()[-4000:], file=sys.stderr)
+    raise SystemExit(f"{app}: /up never answered 200")
+
+
+def wait_for_quiet():
+    waited = 0
+    while os.getloadavg()[0] >= LOAD_MAX and waited < LOAD_WAIT_SECS:
+        time.sleep(10); waited += 10
+    log(f"load before run: {open('/proc/loadavg').read().strip()} (waited {waited}s)")
+
+
+def run_rep(app, rep, out, labels):
+    wait_for_quiet()
+    load0 = open("/proc/loadavg").read().strip()
+    run = os.path.join(BENCH, ".work", app)
+    with open(os.path.join(out, f".{app}-{rep}.log"), "w") as logf:
+        proc, cold = start_app(app, run, logf)
+        sampler = None
+        try:
+            time.sleep(SETTLE_SECS)
+            idle, idle_roles = snapshot(proc.pid)
+            model = process_model(proc.pid)
+            redis_idle = redis_rss_mb()
+            sampler = Sampler(proc.pid); sampler.start()
+            observed = observed_model(model)
+            with open(os.path.join(out, "env.txt"), "a") as e:
+                print(f"observed {app} rep {rep}: {observed}", file=e)
+            log(f"{app} rep {rep}: {observed}")
+            log(f"{app} rep {rep}: cold start {cold}ms, idle PSS {idle['pss_mb']:.0f}MB RSS {idle['rss_mb']:.0f}MB "
+                f"in {idle['procs']} processes" + "".join(f"; {p['role']}: {p['schedulers']} schedulers" for p in model if "schedulers" in p))
+
+            http, cable, upload = run_suites(app, rep, out, labels, lg)
+
+            sampler.stop.set(); sampler.join()
+            peak = sampler.peak
+            memory = {"idle_pss_mb": round(idle["pss_mb"], 1), "idle_rss_mb": round(idle["rss_mb"], 1),
+                      "peak_pss_mb": round(peak["pss_mb"], 1), "peak_rss_mb": round(peak["rss_mb"], 1),
+                      "idle_roles_pss_mb": {r: round(v["pss_mb"], 1) for r, v in idle_roles.items()},
+                      "peak_roles": sampler.roles,
+                      "redis_rss_mb_idle": redis_idle if app != "ours" else None,
+                      "redis_rss_mb_end": redis_rss_mb() if app != "ours" else None}
+        finally:
+            if sampler:
+                sampler.stop.set()
+            kill_session(proc.pid)
+            proc.wait()
+    f = os.path.join(out, f"{app}-{rep}.json")
+    json.dump({"app": app, "rep": rep, "mode": "native", "cold_start_ms": cold, "memory": memory,
+               "process_model": model, "http": http, "cable": cable, "upload": upload,
+               "loadavg_start": load0, "loadavg_end": open("/proc/loadavg").read().strip()}, open(f, "w"), indent=1)
+    shutil.rmtree(run, ignore_errors=True)
+    log(f"{app} rep {rep}: done -> {f}")
+
+
+# --- environment record ----------------------------------------------------------------------
+
+def git_rev(d):
+    rev = sh("git", "-C", d, "rev-parse", "HEAD", check=False)
+    dirty = sh("git", "-C", d, "status", "--porcelain", "--untracked-files=no", check=False)
+    return f"{rev}{' (dirty: ' + str(len(dirty.splitlines())) + ' files)' if dirty else ''}"
+
+
+def siblings(cpus):
+    out = set()
+    for part in cpus.split(","):
+        a, _, b = part.partition("-")
+        for c in range(int(a), int(b or a) + 1):
+            out.add(open(f"/sys/devices/system/cpu/cpu{c}/topology/thread_siblings_list").read().strip())
+    return " ".join(sorted(out))
+
+
+def check_prereqs(apps):
+    need = {"reference": [os.path.join(REFERENCE_DIR, "public", "assets")],
+            "elixir-official": [os.path.join(OFFICIAL_REL, "bin", "campfire"), os.path.join(OFFICIAL_BIN, "campfire-vips")],
+            "ours": [os.path.join(OURS_REL, "bin", "campfire")]}
+    for app in apps:
+        if app not in APPS:
+            raise SystemExit(f"unknown app {app} (one of {', '.join(APPS)})")
+        for p in need[app]:
+            if not os.path.exists(p):
+                raise SystemExit(f"{app}: {p} missing: run bench/setup-native")
+        if app != "ours":
+            thrust()
+            try:
+                redis("PING")
+            except OSError as e:
+                raise SystemExit(f"{app} needs Redis at {REDIS_URL}: {e}")
+
+
+def write_env(out, apps):
+    lines = [f"date: {datetime.now().isoformat()}",
+             "mode: native (bench/run-native), bare processes, loopback",
+             f"host: {os.uname().nodename}, {sh('uname', '-r')}, "
+             f"{sh('sh', '-c', 'grep -m1 \"model name\" /proc/cpuinfo | cut -d: -f2').strip()}, {os.cpu_count()} threads, "
+             f"{os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES') // 2**30}GB, "
+             f"{sh('sh', '-c', '. /etc/os-release; echo $PRETTY_NAME')}",
+             f"governor: {sh('sh', '-c', 'cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null; cat /sys/devices/system/cpu/cpufreq/boost /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null', check=False).replace(chr(10), ' ')}",
+             f"server cpus: {SERVER_CPUS} (siblings {siblings(SERVER_CPUS)}; process model for {NCPU} cpus); "
+             f"loadgen cpus: {LOADGEN_CPUS} (siblings {siblings(LOADGEN_CPUS)}); harness: {HARNESS_CPUS}",
+             f"suites: {SUITES} http secs {HTTP_SECS} concs {HTTP_CONCS} cable {CABLE_CLIENTS}",
+             f"env: {' '.join(x for x in app_env(NCPU) if 'CONCURRENCY' in x or 'THREADS' in x)} {' '.join(EXTRA_ENV)}",
+             f"loadgen: {git_rev(ROOT)} (bench/loadgen)"]
+    if any(a != "ours" for a in apps):
+        info = redis_info("server")
+        lines.append(f"redis (external, shared, FLUSHALL per run): {REDIS_URL} redis {info.get('redis_version')}")
+        lines.append(f"thruster: {thrust()}")
+    if "reference" in apps:
+        env = {**os.environ, "PATH": ruby_bin() + ":" + os.environ["PATH"]}
+        lines.append(f"reference: {REFERENCE_DIR} @ {git_rev(REFERENCE_DIR)}; {sh('ruby', '-v', env=env)}; "
+                     f"jemalloc {JEMALLOC}; libvips {sh('pkg-config', '--modversion', 'vips', check=False)}")
+    for app, rel, d in (("elixir-official", OFFICIAL_REL, OFFICIAL_DIR), ("ours", OURS_REL, ROOT)):
+        if app in apps:
+            erts = sorted(glob.glob(os.path.join(rel, "erts-*")))
+            elixir = sorted(glob.glob(os.path.join(rel, "lib", "elixir-*")))
+            lines.append(f"{app}: {d} @ {git_rev(d)}; release {os.path.basename(erts[-1]) if erts else '?'} "
+                         f"{os.path.basename(elixir[-1]) if elixir else '?'}; ELIXIR_ERL_OPTIONS=\"{ERL_OPTIONS}\"; "
+                         f"VM under taskset {SERVER_CPUS}: {beam_check(rel)}")
+    open(os.path.join(out, "env.txt"), "w").write("\n".join(lines) + "\n")
+    sys.stderr.write("\n".join(lines) + "\n")
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument("--apps", default="reference,ours")
+    p.add_argument("--reps", type=int, default=3)
+    p.add_argument("--out")
+    p.add_argument("--user-agent")
+    a = p.parse_args()
+    if a.user_agent:
+        UA.extend(["--user-agent", a.user_agent])
+    apps = a.apps.split(",")
+    check_prereqs(apps)
+    labels = load_labels()
+    os.sched_setaffinity(0, {c for part in HARNESS_CPUS.split(",") for c in
+                             range(int(part.partition("-")[0]), int(part.partition("-")[2] or part.partition("-")[0]) + 1)})
+    out = a.out or os.path.join(BENCH, "results", "linux-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+    os.makedirs(out, exist_ok=True)
+
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (min(65536, hard), hard))
+    cargo = ["cargo"] if shutil.which("cargo") else ["mise", "exec", "rust@stable", "--", "cargo"]
+    subprocess.run([*cargo, "build", "--release", "-q"], cwd=os.path.join(BENCH, "loadgen"), check=True)
+    write_env(out, apps)
+
+    for rep in range(1, a.reps + 1):
+        for app in (apps if rep % 2 else apps[::-1]):
+            run_rep(app, rep, out, labels)
+    write_report(out)
+
+
+if __name__ == "__main__":
+    main()
