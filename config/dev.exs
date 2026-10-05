@@ -23,6 +23,9 @@ config :campfire, CampfireWeb.Endpoint,
 
 config :campfire, dev_routes: true
 
+# Serve /assets from disk on every request (CampfireWeb.AssetCache would keep boot-time copies).
+config :campfire, cache_assets: false
+
 config :logger, :default_formatter, format: "[$level] $message\n"
 config :phoenix, :stacktrace_depth, 20
 config :phoenix, :plug_init_mode, :runtime

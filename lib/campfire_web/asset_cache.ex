@@ -11,7 +11,8 @@ defmodule CampfireWeb.AssetCache do
   `:persistent_term`. Responses carry the same headers as `Plug.Static`'s (immutable
   cache-control, a strong ETag, the `.gz` body when gzip is accepted), minus range support,
   which browsers don't use for these. Anything else (images, sounds, unknown paths) falls
-  through to `Plug.Static`.
+  through to `Plug.Static`, as does everything in dev, where nothing is loaded
+  (`config :campfire, cache_assets: false`) so edited files show up without a restart.
   """
   @behaviour Plug
 

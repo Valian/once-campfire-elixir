@@ -4,13 +4,15 @@ defmodule CampfireWeb.Gzip do
 
   Bandit would gzip them anyway, but with `:zlib.gzip/1`, fixed at zlib's default level 6, which
   costs more CPU than rendering the room page itself (~2.7 ms vs ~1.5 ms for its 460 KB). Level 3
-  is ~3× cheaper for ~30% more bytes (bench/PERF.md). Bandit leaves responses that already have a
-  `content-encoding` alone and still adds `vary: accept-encoding`.
+  is ~3× cheaper for ~30% more bytes (bench/PERF.md). Bandit (1.12) has no setting for this: its
+  `deflate_options` only apply to the `deflate` encoding. A gzip level upstream would make this
+  module unnecessary.
 
-  Bandit 1.12's `deflate_options` only apply to the `deflate` encoding; a `level` option for
-  gzip upstream would make this module unnecessary. Otherwise the same rules as Bandit: never
-  for 204/304, empty bodies, `cache-control: no-transform`, strong ETags or bodies already
-  encoded. Files (`send_file`) and chunked responses are left to Bandit.
+  Clients that offer zstd (browsers do) are left to Bandit, which prefers zstd and compresses
+  it more cheaply (bench/PERF.md). Otherwise the same rules as Bandit: never for 204/304,
+  empty bodies, `cache-control: no-transform`, strong ETags or bodies already encoded (Bandit
+  then leaves the response alone and still adds `vary: accept-encoding`). Files (`send_file`)
+  and chunked responses are left to Bandit.
   """
   @behaviour Plug
 
@@ -44,7 +46,7 @@ defmodule CampfireWeb.Gzip do
       Enum.all?(get_resp_header(conn, "etag"), &String.starts_with?(&1, "W/"))
   end
 
-  # Bandit (1.12) prefers zstd when the client offers it, as browsers do; leave those to it.
+  # A substring check, no q-values: our clients are browsers (zstd) and the loadgen (gzip).
   defp accepts_gzip?(conn) do
     accept = conn |> get_req_header("accept-encoding") |> Enum.join(",")
     String.contains?(accept, "gzip") and not String.contains?(accept, "zstd")
