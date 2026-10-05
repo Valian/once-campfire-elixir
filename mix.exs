@@ -39,7 +39,8 @@ defmodule Campfire.MixProject do
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       # HEEx function components live here; we don't use LiveView itself.
       {:phoenix_live_view, "~> 1.2.0"},
-      {:lazy_html, ">= 0.1.0", only: :test},
+      {:lazy_html, "~> 0.1.13"},
+      {:vix, "~> 0.36"},
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
       {:bcrypt_elixir, "~> 3.3"}

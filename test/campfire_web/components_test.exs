@@ -15,7 +15,9 @@ defmodule CampfireWeb.ComponentsTest do
     assert html =~ ~s(src="/users/#{label("avatar_tokens.jason")}/avatar?v=20260125160000")
     assert html =~ ~s(aria-hidden="true")
 
-    html = rendered_to_string(~H|<.avatar user={@user} img={%{"aria-label" => "Jason boosted 👍"}} />|)
+    html =
+      rendered_to_string(~H|<.avatar user={@user} img={%{"aria-label" => "Jason boosted 👍"}} />|)
+
     assert html =~ ~s(aria-label="Jason boosted 👍")
     refute html =~ "aria-hidden"
   end
@@ -32,7 +34,9 @@ defmodule CampfireWeb.ComponentsTest do
 
     html =
       rendered_to_string(~H"""
-      <CampfireWeb.Layouts.app flash={%{}} turbo_frame="user_sidebar">frame body</CampfireWeb.Layouts.app>
+      <CampfireWeb.Layouts.app flash={%{}} turbo_frame="user_sidebar">
+        frame body
+      </CampfireWeb.Layouts.app>
       """)
 
     assert html =~ ~s(<meta name="csrf-token")
