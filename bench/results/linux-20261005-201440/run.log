@@ -1,0 +1,155 @@
+date: 2026-10-05T20:14:40.775507
+mode: native (bench/run-native), bare processes, loopback
+host: g36-1, 7.0.0-38-generic, 12th Gen Intel(R) Core(TM) i5-12500, 12 threads, 62GB, Ubuntu 26.04.1 LTS
+governor: powersave 0
+server cpus: 4-7 (siblings 4-5 6-7; process model for 4 cpus); loadgen cpus: 8-11 (siblings 10-11 8-9); harness: 0-3
+suites: ['http', 'cable', 'upload'] http secs 5 concs ['1', '16', '64'] cable ['100', '500', '1000']
+env: WEB_CONCURRENCY=3 JOB_CONCURRENCY=3 RAILS_MAX_THREADS=5 
+loadgen: 065ec082e214ed177ec5b199f07867be4bb1bf63 (bench/loadgen)
+ours: /home/hermes/orca/workspaces/once-campfire-elixir/server-results @ 065ec082e214ed177ec5b199f07867be4bb1bf63; release erts-16.4 elixir-1.19.5; ELIXIR_ERL_OPTIONS="+S 4:4 +SDcpu 4:4"; VM under taskset 4-7: schedulers_online=4/4 dirty_cpu_schedulers_online=4 dirty_io_schedulers=10 otp=28 elixir=1.19.5
+[20:14:50] load before run: 2.63 1.38 1.46 2/1095 2166905 (waited 10s)
+[20:15:01] ours rep 1: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 1 processes: beam
+[20:15:01] ours rep 1: cold start 598ms, idle PSS 158MB RSS 199MB in 1 processes; beam: 4 schedulers
+[20:15:08] ours rep 1: room_show c=1 473.7 rps p50 2.097 p99 2.481 {'200': 2369} err 0
+[20:15:13] ours rep 1: room_show c=16 1194.3 rps p50 13.215 p99 18.815 {'200': 5984} err 0
+[20:15:18] ours rep 1: room_show c=64 1169.9 rps p50 54.463 p99 61.247 {'200': 5905} err 0
+[20:15:25] ours rep 1: messages_page c=1 616.0 rps p50 1.612 p99 1.872 {'200': 3080} err 0
+[20:15:30] ours rep 1: messages_page c=16 1481.8 rps p50 10.655 p99 15.783 {'200': 7421} err 0
+[20:15:35] ours rep 1: messages_page c=64 1435.7 rps p50 44.383 p99 51.039 {'200': 7233} err 0
+[20:15:42] ours rep 1: sidebar c=1 1155.5 rps p50 0.847 p99 1.044 {'200': 5778} err 0
+[20:15:47] ours rep 1: sidebar c=16 2372.5 rps p50 6.715 p99 8.919 {'200': 11873} err 0
+[20:15:52] ours rep 1: sidebar c=64 2203.7 rps p50 28.959 p99 32.223 {'200': 11062} err 0
+[20:15:59] ours rep 1: search c=1 754.7 rps p50 1.327 p99 1.485 {'200': 3774} err 0
+[20:16:05] ours rep 1: search c=16 1768.9 rps p50 8.999 p99 11.759 {'200': 8855} err 0
+[20:16:10] ours rep 1: search c=64 1653.2 rps p50 38.655 p99 42.559 {'200': 8313} err 0
+[20:16:17] ours rep 1: avatar c=1 16014.2 rps p50 0.061 p99 0.087 {'200': 80072} err 0
+[20:16:22] ours rep 1: avatar c=16 37499.9 rps p50 0.39 p99 0.578 {'200': 187521} err 0
+[20:16:27] ours rep 1: avatar c=64 38603.7 rps p50 1.651 p99 1.831 {'200': 193097} err 0
+[20:16:34] ours rep 1: static_css c=1 30867.2 rps p50 0.031 p99 0.039 {'200': 154341} err 0
+[20:16:39] ours rep 1: static_css c=16 89852.9 rps p50 0.177 p99 0.297 {'200': 449296} err 0
+[20:16:44] ours rep 1: static_css c=64 87945.3 rps p50 0.749 p99 0.827 {'200': 439815} err 0
+[20:16:51] ours rep 1: up c=1 31184.2 rps p50 0.031 p99 0.04 {'200': 155924} err 0
+[20:16:56] ours rep 1: up c=16 80390.8 rps p50 0.198 p99 0.284 {'200': 401981} err 0
+[20:17:01] ours rep 1: up c=64 80696.8 rps p50 0.786 p99 0.961 {'200': 403576} err 0
+[20:17:08] ours rep 1: post_message c=1 698.0 rps p50 1.275 p99 3.687 {'200': 3512} err 0
+[20:17:13] ours rep 1: post_message c=16 962.1 rps p50 13.823 p99 62.015 {'200': 4821} err 0
+[20:17:18] ours rep 1: post_message c=64 957.2 rps p50 57.087 p99 127.615 {'200': 4852} err 0
+[20:17:40] ours rep 1: cable 100 clients ready 100 lat p50 7.667 p99 10.271 tput 578.9 msg/s 8687/8687
+[20:18:04] ours rep 1: cable 500 clients ready 500 lat p50 11.671 p99 25.407 tput 186.6 msg/s 2803/2803
+[20:18:29] ours rep 1: cable 1000 clients ready 1000 lat p50 16.135 p99 34.079 tput 97.4 msg/s 1464/1464
+[20:18:31] ours rep 1: upload median 38.6ms
+[20:18:32] ours rep 1: done -> results/linux-20261005-201440/ours-1.json
+[20:19:32] load before run: 2.90 3.04 2.19 2/1082 2171709 (waited 60s)
+[20:19:43] ours rep 2: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 1 processes: beam
+[20:19:43] ours rep 2: cold start 649ms, idle PSS 165MB RSS 206MB in 1 processes; beam: 4 schedulers
+[20:19:50] ours rep 2: room_show c=1 482.1 rps p50 2.071 p99 2.309 {'200': 2411} err 0
+[20:19:55] ours rep 2: room_show c=16 1213.0 rps p50 13.015 p99 18.351 {'200': 6079} err 0
+[20:20:00] ours rep 2: room_show c=64 1167.3 rps p50 54.623 p99 61.471 {'200': 5887} err 0
+[20:20:07] ours rep 2: messages_page c=1 622.0 rps p50 1.604 p99 1.86 {'200': 3110} err 0
+[20:20:12] ours rep 2: messages_page c=16 1493.2 rps p50 10.583 p99 15.623 {'200': 7479} err 0
+[20:20:17] ours rep 2: messages_page c=64 1445.4 rps p50 44.063 p99 50.751 {'200': 7281} err 0
+[20:20:24] ours rep 2: sidebar c=1 1157.0 rps p50 0.842 p99 1.077 {'200': 5786} err 0
+[20:20:29] ours rep 2: sidebar c=16 2408.8 rps p50 6.619 p99 8.671 {'200': 12054} err 0
+[20:20:34] ours rep 2: sidebar c=64 2228.1 rps p50 28.607 p99 32.767 {'200': 11191} err 0
+[20:20:41] ours rep 2: search c=1 760.7 rps p50 1.318 p99 1.492 {'200': 3804} err 0
+[20:20:46] ours rep 2: search c=16 1757.4 rps p50 9.063 p99 11.919 {'200': 8799} err 0
+[20:20:51] ours rep 2: search c=64 1637.0 rps p50 39.007 p99 42.975 {'200': 8228} err 0
+[20:20:58] ours rep 2: avatar c=1 15983.1 rps p50 0.061 p99 0.077 {'200': 79918} err 0
+[20:21:03] ours rep 2: avatar c=16 37532.5 rps p50 0.424 p99 0.639 {'200': 187683} err 0
+[20:21:08] ours rep 2: avatar c=64 38271.1 rps p50 1.682 p99 1.826 {'200': 191434} err 0
+[20:21:15] ours rep 2: static_css c=1 30789.9 rps p50 0.031 p99 0.04 {'200': 153952} err 0
+[20:21:20] ours rep 2: static_css c=16 90818.4 rps p50 0.175 p99 0.267 {'200': 454122} err 0
+[20:21:25] ours rep 2: static_css c=64 89378.4 rps p50 0.712 p99 0.822 {'200': 446982} err 0
+[20:21:32] ours rep 2: up c=1 31546.1 rps p50 0.031 p99 0.039 {'200': 157732} err 0
+[20:21:37] ours rep 2: up c=16 81330.6 rps p50 0.194 p99 0.281 {'200': 406681} err 0
+[20:21:42] ours rep 2: up c=64 81054.7 rps p50 0.789 p99 0.872 {'200': 405365} err 0
+[20:21:49] ours rep 2: post_message c=1 665.8 rps p50 1.326 p99 3.921 {'200': 3330} err 0
+[20:21:54] ours rep 2: post_message c=16 976.9 rps p50 13.719 p99 60.671 {'200': 4897} err 0
+[20:21:59] ours rep 2: post_message c=64 938.8 rps p50 57.951 p99 130.751 {'200': 4758} err 0
+[20:22:21] ours rep 2: cable 100 clients ready 100 lat p50 7.119 p99 9.847 tput 580.7 msg/s 8713/8713
+[20:22:46] ours rep 2: cable 500 clients ready 500 lat p50 12.471 p99 23.951 tput 187.7 msg/s 2818/2818
+[20:23:10] ours rep 2: cable 1000 clients ready 1000 lat p50 17.023 p99 36.223 tput 98.2 msg/s 1476/1476
+[20:23:12] ours rep 2: upload median 40.5ms
+[20:23:13] ours rep 2: done -> results/linux-20261005-201440/ours-2.json
+# Results: linux-20261005-201440
+
+ours: 2 rep(s)
+
+```
+date: 2026-10-05T20:14:40.775507
+mode: native (bench/run-native), bare processes, loopback
+host: g36-1, 7.0.0-38-generic, 12th Gen Intel(R) Core(TM) i5-12500, 12 threads, 62GB, Ubuntu 26.04.1 LTS
+governor: powersave 0
+server cpus: 4-7 (siblings 4-5 6-7; process model for 4 cpus); loadgen cpus: 8-11 (siblings 10-11 8-9); harness: 0-3
+suites: ['http', 'cable', 'upload'] http secs 5 concs ['1', '16', '64'] cable ['100', '500', '1000']
+env: WEB_CONCURRENCY=3 JOB_CONCURRENCY=3 RAILS_MAX_THREADS=5 
+loadgen: 065ec082e214ed177ec5b199f07867be4bb1bf63 (bench/loadgen)
+ours: /home/hermes/orca/workspaces/once-campfire-elixir/server-results @ 065ec082e214ed177ec5b199f07867be4bb1bf63; release erts-16.4 elixir-1.19.5; ELIXIR_ERL_OPTIONS="+S 4:4 +SDcpu 4:4"; VM under taskset 4-7: schedulers_online=4/4 dirty_cpu_schedulers_online=4 dirty_io_schedulers=10 otp=28 elixir=1.19.5
+observed ours rep 1: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 1 processes: beam
+observed ours rep 2: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 1 processes: beam
+```
+
+## Startup and memory
+
+| metric | ours |
+|---|---|
+| cold start to /up (ms) | 624 [598–649] |
+| idle PSS (MB) | 162 [158–165] |
+| peak PSS (MB) | 427 [396–458] |
+| idle RSS (MB) | 202 [199–206] |
+| peak RSS (MB) | 468 [437–499] |
+
+## HTTP (median rps, p50/p99 ms)
+
+| route | conc | ours rps | ours p50 | ours p99 | ours bad |
+|---|---|---|---|---|---|
+| room_show | 1 | 478 [474–482] | 2.08 | 2.40 | 0 |
+| room_show | 16 | 1,204 [1,194–1,213] | 13.1 | 18.6 | 0 |
+| room_show | 64 | 1,169 [1,167–1,170] | 54.5 | 61.4 | 0 |
+| messages_page | 1 | 619 [616–622] | 1.61 | 1.87 | 0 |
+| messages_page | 16 | 1,488 [1,482–1,493] | 10.6 | 15.7 | 0 |
+| messages_page | 64 | 1,441 [1,436–1,445] | 44.2 | 50.9 | 0 |
+| sidebar | 1 | 1,156 [1,156–1,157] | 0.84 | 1.06 | 0 |
+| sidebar | 16 | 2,391 [2,372–2,409] | 6.67 | 8.79 | 0 |
+| sidebar | 64 | 2,216 [2,204–2,228] | 28.8 | 32.5 | 0 |
+| search | 1 | 758 [755–761] | 1.32 | 1.49 | 0 |
+| search | 16 | 1,763 [1,757–1,769] | 9.03 | 11.8 | 0 |
+| search | 64 | 1,645 [1,637–1,653] | 38.8 | 42.8 | 0 |
+| avatar | 1 | 15,999 [15,983–16,014] | 0.06 | 0.08 | 0 |
+| avatar | 16 | 37,516 [37,500–37,532] | 0.41 | 0.61 | 0 |
+| avatar | 64 | 38,437 [38,271–38,604] | 1.67 | 1.83 | 0 |
+| static_css | 1 | 30,829 [30,790–30,867] | 0.03 | 0.04 | 0 |
+| static_css | 16 | 90,336 [89,853–90,818] | 0.18 | 0.28 | 0 |
+| static_css | 64 | 88,662 [87,945–89,378] | 0.73 | 0.82 | 0 |
+| up | 1 | 31,365 [31,184–31,546] | 0.03 | 0.04 | 0 |
+| up | 16 | 80,861 [80,391–81,331] | 0.20 | 0.28 | 0 |
+| up | 64 | 80,876 [80,697–81,055] | 0.79 | 0.92 | 0 |
+| post_message | 1 | 682 [666–698] | 1.30 | 3.80 | 0 |
+| post_message | 16 | 970 [962–977] | 13.8 | 61.3 | 0 |
+| post_message | 64 | 948 [939–957] | 57.5 | 129 | 0 |
+
+## Action Cable fan-out
+
+| clients | metric | ours |
+|---|---|---|
+| 100 | ready | 100 |
+| 100 | connect (s) | 0.06 |
+| 100 | fan-out latency p50 (ms) | 7.39 [7.12–7.67] |
+| 100 | fan-out latency p99 (ms) | 10.1 [9.85–10.3] |
+| 100 | delivered msg/s | 580 [579–581] |
+| 500 | ready | 500 |
+| 500 | connect (s) | 0.22 [0.17–0.27] |
+| 500 | fan-out latency p50 (ms) | 12.1 [11.7–12.5] |
+| 500 | fan-out latency p99 (ms) | 24.7 [24.0–25.4] |
+| 500 | delivered msg/s | 187 [187–188] |
+| 1000 | ready | 1,000 |
+| 1000 | connect (s) | 0.34 [0.33–0.34] |
+| 1000 | fan-out latency p50 (ms) | 16.6 [16.1–17.0] |
+| 1000 | fan-out latency p99 (ms) | 35.2 [34.1–36.2] |
+| 1000 | delivered msg/s | 97.8 [97.4–98.2] |
+
+## Upload (black_hole.jpg, post + thumbnail)
+
+| metric | ours |
+|---|---|
+| median total (ms) | 39.5 [38.6–40.5] |

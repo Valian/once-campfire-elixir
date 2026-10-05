@@ -21,7 +21,7 @@ database and Active Storage directory, unchanged. `docs/SPEC.md` is the contract
 | `CampfireWeb.Endpoint` | `/up` (before everything), `/assets` (css/js from memory via `AssetCache`, the rest Plug.Static; `.gz` siblings, immutable), `Gzip`, parsers, cookie session `_campfire_session` |
 | `CampfireWeb.AssetCache` | digested `.css`/`.js` (+ `.gz`) read into `:persistent_term` at boot (not in dev: `cache_assets: false`) and served from there; other paths fall through to Plug.Static |
 | `CampfireWeb.Gzip` | gzips response bodies at zlib level 3 (Bandit's gzip is fixed at 6); leaves zstd-capable clients to Bandit |
-| `CampfireWeb.Router` | `:browser` pipeline (+ `:authenticated`) |
+| `CampfireWeb.Router` | `:browser` pipeline (+ `:authenticated`); avatar GETs use `:avatar` (no session, flash or CSRF) |
 | `CampfireWeb.UserAuth` | `fetch_current_user` / `require_authenticated_user` plugs, `log_in_user`, `log_out_user`, `disconnect_cable/1` |
 | `CampfireWeb.Plugs` | `authenticity_token` → CSRF, `X-Version`/`X-Rev`, banned-IP 429, `@turbo_frame` |
 | `CampfireWeb.Layouts` | `<Layouts.app>`: full page or Turbo frame layout, slots `head nav footer sidebar` |

@@ -70,55 +70,112 @@ builds it).
 
 `bench/` holds two harnesses over the same Rust load generator, seed builder and suites from
 [once-campfire-rust](https://github.com/basecamp/once-campfire-rust). Each app runs on a fresh
-copy of the same seed. `bench/run-native` runs every app as bare processes on Linux, pinned with
-taskset. `bench/run` is the macOS/Docker Desktop adaptation. See [`bench/README.md`](bench/README.md).
+copy of the same seed with the same suites:
+
+- HTTP: room page, messages page, sidebar, search, avatar, static CSS, `/up` and posting a
+  message, each at 1/16/64 clients.
+- Action Cable fan-out to 100/500/1,000 clients.
+- Upload until the thumbnail is ready.
+
+`bench/run-native` runs the apps as bare processes on Linux, pinned with taskset; the results
+below come from it. `bench/run` is the macOS/Docker Desktop adaptation. Details and every knob are
+in [`bench/README.md`](bench/README.md); the performance log is [`bench/PERF.md`](bench/PERF.md).
+
+### Running the benchmarks
+
+**1. Seed (once).** `bench/make-seed` needs Docker. It builds the Rails reference image and writes
+`bench/seed/{db,storage,labels.json}`. The seed is deterministic, so on a machine without Docker
+you can copy `bench/seed` from one that has it.
+
+**2. Native Linux (the numbers below).**
+
+You need:
+
+- [mise](https://mise.jdx.dev). `bench/setup-native` uses it to get Rust, the reference's Ruby,
+  and Erlang 28.5 + Elixir 1.19.5.
+- These apt packages: `build-essential pkg-config libssl-dev libyaml-dev libsqlite3-dev
+  libvips-dev libjemalloc2 ffmpeg`.
+- Redis for Rails and the official port (not for this app), at `REDIS_URL` (default
+  `redis://127.0.0.1:6379/0`), e.g. `docker run -d -p 127.0.0.1:6379:6379 redis:7`.
+- 12 hardware threads for the default pinning: app on CPUs 4–7, load generator on 8–11, harness
+  on 0–3. Change it with `SERVER_CPUS`, `LOADGEN_CPUS` and `HARNESS_CPUS`.
 
 ```sh
-bench/setup-native                                                  # Linux: build all three apps
-bench/run-native --apps reference,elixir-official,ours --reps 2
-bench/make-seed && bench/run --apps reference,elixir-official,ours  # macOS/Docker
+bench/setup-native                                   # build loadgen, Rails, the official port and this app
+bench/run-native --apps reference,elixir-official,ours --reps 2                    # everything, ~30 min
+bench/run-native --apps ours --reps 2                                              # this app only, ~10 min
+HTTP_SECS=3 HTTP_CONCS=16 CABLE_CLIENTS=100 bench/run-native --apps ours --reps 1  # smoke test, ~2 min
+bench/report bench/results/linux-<stamp>             # re-render report.md
+```
+
+`run-native` benchmarks the release in `_build/prod/rel/campfire`, so rebuild it after changing
+code (`MIX_ENV=prod mix release --overwrite`, or `bench/setup-native ours`). Each run writes
+`bench/results/linux-<stamp>/` containing:
+
+- `report.md`: the tables;
+- `env.txt`: host, commits, pinning, the scheduler counts each VM reports, and the observed
+  process tree per run;
+- `<app>-<rep>.json`: raw results;
+- `run.log`: the harness log.
+
+The tables below were made with `HTTP_SECS=5` (the default is 8) and the default concurrencies
+and cable sizes. Before each app run, the harness waits for the 1-minute load average to drop
+below `LOAD_MAX` (3) and records it.
+
+**3. macOS / Docker Desktop.**
+
+```sh
+docker build -t campfire-phoenix:app . && bench/build-elixir-official
+bench/run --apps reference,elixir-official,ours --reps 2
 ```
 
 ### Results: native Linux
 
-Run [`bench/results/linux-20261005-191554`](bench/results/linux-20261005-191554/report.md): Intel
-i5-12500 (6 cores / 12 threads, 62 GB, Ubuntu 26.04, kernel 7.0, xfs on NVMe RAID1). Each app is
-pinned with `taskset` to CPUs 4–7 (two physical cores and their hyperthreads), the load generator
-to 8–11, over loopback. 2 reps, alternating order, 5 s per HTTP sample. Values are median
-requests/s with p99 latency in brackets. Zero non-2xx responses or errors in any sample.
+Host: Intel i5-12500 (6 cores / 12 threads, 62 GB, Ubuntu 26.04, kernel 7.0, xfs on NVMe RAID1).
+Each app is pinned with `taskset` to CPUs 4–7 (two physical cores and their hyperthreads) and the
+load generator to 8–11, over loopback. 2 reps, 5 s per HTTP sample. Values are median requests/s,
+with p99 latency in brackets. Zero non-2xx responses or errors in any sample.
+
+The results come from two runs on the same host with the same harness and settings:
+
+- This repo: [`linux-20261005-201440`](bench/results/linux-20261005-201440/report.md), at
+  `065ec08`.
+- Rails and the official port:
+  [`linux-20261005-191554`](bench/results/linux-20261005-191554/report.md), an hour earlier,
+  which ran all three apps in alternating order.
 
 | Route, 16 clients | Rails | Official Elixir port | This repo |
 |---|---:|---:|---:|
-| Room page | 142 (250 ms) | 465 (45 ms) | **1,087 (21 ms)** |
-| Messages page | 263 (120 ms) | 626 (37 ms) | **1,314 (18 ms)** |
-| Sidebar | 350 (86 ms) | 779 (25 ms) | **1,881 (11 ms)** |
-| Search | 266 (111 ms) | 796 (25 ms) | **1,609 (13 ms)** |
-| Post a message | 165 (234 ms) | 487 (54 ms) | **952 (63 ms)** |
-| Avatar ¹ | 50.3k | **51.5k** | 32.3k |
-| Static CSS ¹ | 65.3k | 64.1k | **89.3k** |
-| `/up` | 2.8k | 4.9k | **80.2k** |
+| Room page | 142 (250 ms) | 465 (45 ms) | **1,204 (19 ms)** |
+| Messages page | 263 (120 ms) | 626 (37 ms) | **1,488 (16 ms)** |
+| Sidebar | 350 (86 ms) | 779 (25 ms) | **2,391 (9 ms)** |
+| Search | 266 (111 ms) | 796 (25 ms) | **1,763 (12 ms)** |
+| Post a message | 165 (234 ms) | 487 (54 ms) | **970 (61 ms)** |
+| Avatar ¹ | 50.3k | **51.5k** | 37.5k |
+| Static CSS ¹ | 65.3k | 64.1k | **90.3k** |
+| `/up` | 2.8k | 4.9k | **80.9k** |
 
 | | Rails | Official Elixir port | This repo |
 |---|---:|---:|---:|
-| Room page, 1 client / 64 clients | 69 / 139 | 224 / 460 | **452 / 1,067** |
-| Post a message, 1 client / 64 clients | 99 / 166 | 259 / 532 | **687 / 932** |
-| Upload until thumbnail, median | 83 ms | 89 ms | **41 ms** |
+| Room page, 1 client / 64 clients | 69 / 139 | 224 / 460 | **478 / 1,169** |
+| Post a message, 1 client / 64 clients | 99 / 166 | 259 / 532 | **682 / 948** |
+| Upload until thumbnail, median | 83 ms | 89 ms | **40 ms** |
 | Cable, 1,000 clients: ready | 1,000 | 1,000 | 1,000 |
-| Cable, 1,000 clients: post → all clients p50 / p99 | 134 / 185 ms | 34 / 55 ms | **19 / 36 ms** |
-| Cable, 1,000 clients: delivered msg/s | 9.2 | 46 | **95** |
-| Cable, 100 clients: delivered msg/s | 59 | 232 | **567** |
-| Memory, idle / peak (PSS) ² | 313 / 1,305 MB | **141** / 536 MB | 156 / **450** MB |
-| Cold start to `/up` | 2.8 s | **0.57 s** | 0.66 s |
+| Cable, 1,000 clients: post → all clients p50 / p99 | 134 / 185 ms | 34 / 55 ms | **17 / 35 ms** |
+| Cable, 1,000 clients: delivered msg/s | 9.2 | 46 | **98** |
+| Cable, 100 clients: delivered msg/s | 59 | 232 | **580** |
+| Memory, idle / peak (PSS) ² | 313 / 1,305 MB | **141** / 536 MB | 162 / **427** MB |
+| Cold start to `/up` | 2.8 s | **0.57 s** | 0.62 s |
 
 ¹ For Rails and the official port these are answered by Thruster's in-memory HTTP cache (all but
 a handful of the ~600k requests per sample were cache hits), not by the app. Ours serves them
-itself: avatars from an ETS cache through the router, CSS from `:persistent_term`.
+itself: avatars from an ETS cache through a minimal pipeline, CSS from `:persistent_term`.
 ² Sum over the app's processes (Puma + resque + Thruster, BEAM + Thruster, BEAM). Redis, which
 the other two need, is external here and not included (18 MB and 37 MB RSS at the end of a run).
 
 How it was run:
 
-- **Commits.** This repo is at `51c78be` (branch `server-results`). Rails
+- **Commits.** This repo is at `065ec08` (branch `server-results`). Rails
   [once-campfire](https://github.com/basecamp/once-campfire) is at `90b3300`. The official port
   [once-campfire-elixir](https://github.com/basecamp/once-campfire-elixir) is at `b6b82e5`.
   Toolchain: Ruby 3.4.10 + jemalloc; OTP 28.5 (ERTS 16.4) and Elixir 1.19.5 for both Elixir
@@ -138,10 +195,17 @@ How it was run:
     the images.
   - The official port links the system SQLite (`EXQLITE_USE_SYSTEM=1`, as its Dockerfile does).
     Ours uses exqlite's bundled build.
-  - The CPU governor is the host's `powersave` (intel_pstate, turbo on). The benchmark user has
-    no root to change it.
-- **Host.** The machine is shared: the 1-minute load average was 2.7–3.0 at the start of each
+  - The CPU governor is the host's `powersave`: intel_pstate with hardware P-states, EPP
+    `balance_performance`, turbo on. Under load the pinned cores ran at 3.9–4.05 GHz on average,
+    i.e. all-core turbo, so it isn't throttling throughput; `performance` would mainly help
+    1-client latency. Changing it needs root, which the benchmark user doesn't have.
+- **Host.** The machine is shared: the 1-minute load average was 2.6–3.0 at the start of each
   run (the harness waits for it to drop below 3).
+- **This repo's earlier run.** Between `51c78be` (the three-app run) and `065ec08`, preloads
+  were trimmed to the columns the partials render and avatars got a session-less pipeline.
+  At 16 clients that moved the room page from 1,087 to 1,204, messages from 1,314 to 1,488, the
+  sidebar from 1,881 to 2,391, search from 1,609 to 1,763 and avatars from 32k to 38k. Posting
+  is unchanged (it's bound by the single writer).
 
 The performance work behind these numbers (gzip level, scheduler busy-wait, WAL checkpoints,
 in-memory assets), each change with its before and after, is in [`bench/PERF.md`](bench/PERF.md).
