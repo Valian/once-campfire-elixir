@@ -1,0 +1,95 @@
+#!/usr/bin/env python3
+"""Markdown summary of a bench/run results dir: median [min–max] across reps, per app.
+
+  bench/report bench/results/<stamp>
+
+"bad" counts responses that weren't 2xx/3xx plus transport errors, summed over reps: the
+load generator's rps counts every response, so a fast 500 still counts as throughput.
+"""
+import glob, json, os, statistics, sys
+
+out = sys.argv[1]
+runs = {}
+for f in sorted(glob.glob(os.path.join(out, "*-*.json"))):
+    r = json.load(open(f))
+    runs.setdefault(r["app"], []).append(r)
+order = ["reference", "elixir-official", "ours"]
+apps = sorted(runs, key=lambda a: order.index(a) if a in order else 99)
+
+
+def fmt(v):
+    return "–" if v is None else f"{v:,.0f}" if abs(v) >= 100 else f"{v:.1f}" if abs(v) >= 10 else f"{v:.2f}"
+
+
+def cell(vals, spread=True):
+    vals = [v for v in vals if v is not None]
+    if not vals:
+        return "–"
+    m = statistics.median(vals)
+    return fmt(m) + (f" [{fmt(min(vals))}–{fmt(max(vals))}]" if spread and len(vals) > 1 and min(vals) != max(vals) else "")
+
+
+def get(r, fn):
+    try:
+        return fn(r)
+    except (KeyError, IndexError, TypeError, StopIteration):
+        return None
+
+
+def table(title, cols, rows):
+    print(f"\n## {title}\n")
+    print("| " + " | ".join(cols) + " |")
+    print("|" + "---|" * len(cols))
+    for row in rows:
+        print("| " + " | ".join(row) + " |")
+
+
+print(f"# Results: {os.path.basename(os.path.normpath(out))}\n")
+print(", ".join(f"{a}: {len(runs[a])} rep(s)" for a in apps))
+if os.path.exists(os.path.join(out, "env.txt")):
+    print("\n```\n" + open(os.path.join(out, "env.txt")).read().strip() + "\n```")
+
+table("Startup and memory", ["metric"] + apps, [
+    [name] + [cell([get(r, fn) for r in runs[a]]) for a in apps] for name, fn in [
+        ("cold start to /up (ms)", lambda r: r["cold_start_ms"]),
+        ("idle memory (MB)", lambda r: r["memory"]["idle_current_mb"]),
+        ("peak memory (MB)", lambda r: r["memory"]["cgroup_peak_mb"]),
+    ]])
+
+keys = []
+for a in apps:
+    for r in runs[a]:
+        for h in r["http"]:
+            if (h["route"], h["conc"]) not in keys:
+                keys.append((h["route"], h["conc"]))
+if keys:
+    rows = []
+    for route, conc in keys:
+        row = [route, str(conc)]
+        for a in apps:
+            hs = [next((h for h in r["http"] if h["route"] == route and h["conc"] == conc), None) for r in runs[a]]
+            hs = [h for h in hs if h]
+            bad = sum(h["errors"] + sum(v for k, v in h["statuses"].items() if not 200 <= int(k) < 400) for h in hs)
+            row += [cell([h["rps"] for h in hs]), cell([h["latency"].get("p50_ms") for h in hs], False),
+                    cell([h["latency"].get("p99_ms") for h in hs], False), str(bad) if hs else "–"]
+        rows.append(row)
+    table("HTTP (median rps, p50/p99 ms)", ["route", "conc"] + [f"{a} {m}" for a in apps for m in ("rps", "p50", "p99", "bad")], rows)
+
+ns = sorted({c["clients"] for a in apps for r in runs[a] for c in r["cable"]})
+if ns:
+    rows = []
+    for n in ns:
+        for name, fn in [("ready", lambda c: c["ready"]), ("connect (s)", lambda c: c["connect_secs"]),
+                         ("fan-out latency p50 (ms)", lambda c: c["latency"]["all_clients"]["p50_ms"]),
+                         ("fan-out latency p99 (ms)", lambda c: c["latency"]["all_clients"]["p99_ms"]),
+                         ("delivered msg/s", lambda c: c["throughput"]["delivered_msgs_per_sec"])]:
+            row = [str(n), name]
+            for a in apps:
+                cs = [next((c for c in r["cable"] if c["clients"] == n), None) for r in runs[a]]
+                row.append(cell([get(c, fn) for c in cs if c]))
+            rows.append(row)
+    table("Action Cable fan-out", ["clients", "metric"] + apps, rows)
+
+if any(r["upload"] for a in apps for r in runs[a]):
+    table("Upload (black_hole.jpg, post + thumbnail)", ["metric"] + apps,
+          [["median total (ms)"] + [cell([get(r, lambda r: r["upload"]["median_total_ms"]) for r in runs[a]]) for a in apps]])

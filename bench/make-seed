@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Build bench/seed/{db/production.sqlite3, storage/, labels.json} with the Rails reference app,
+# exactly as once-campfire-rust's parity/bin/seed does: db:prepare, then seed-builder/build.rb
+# default under bin/rails runner (fixtures + scripted scenario, deterministic clock).
+#
+#   bench/make-seed             # clones once-campfire at REF_COMMIT, builds the image if missing
+#   REBUILD=1 bench/make-seed   # rebuild the reference image too
+#
+# Env: REF_COMMIT (default: the commit once-campfire-rust pins as its `reference` submodule),
+#      REF_DIR (checkout, default bench/.cache/once-campfire), REFERENCE_IMAGE (campfire-reference:app)
+set -euo pipefail
+
+BENCH=$(cd "$(dirname "$0")" && pwd)
+REF_COMMIT=${REF_COMMIT:-90b330024dec3e757c79b6a7e6568f93da8e3148}
+REF_DIR=${REF_DIR:-$BENCH/.cache/once-campfire}
+IMAGE=${REFERENCE_IMAGE:-campfire-reference:app}
+OUT=$BENCH/seed
+TMP=$BENCH/.cache/seed-build
+
+if [ ! -d "$REF_DIR/.git" ]; then
+  git clone --filter=blob:none https://github.com/basecamp/once-campfire.git "$REF_DIR"
+fi
+git -C "$REF_DIR" fetch -q origin || true
+git -C "$REF_DIR" -c advice.detachedHead=false checkout -q "$REF_COMMIT"
+
+if [ -n "${REBUILD:-}" ] || ! docker image inspect "$IMAGE" >/dev/null 2>&1; then
+  echo "make-seed: building $IMAGE from $REF_DIR @ $REF_COMMIT" >&2
+  docker build -t "$IMAGE" --build-arg APP_VERSION=parity --build-arg GIT_REVISION="$REF_COMMIT" "$REF_DIR"
+fi
+
+rm -rf "$TMP"; mkdir -p "$TMP/db" "$TMP/storage"
+# test/fixtures is excluded from the image by .dockerignore, so mount it from the checkout.
+# The image's own user (1000) writes the bind mounts; Docker Desktop maps them to the host user.
+docker run --rm --env-file "$BENCH/env.reference" -e RAILS_LOG_LEVEL=warn \
+  -v "$TMP/db:/rails/storage/db" -v "$TMP/storage:/rails/storage/files" \
+  -v "$REF_DIR/test/fixtures:/rails/test/fixtures:ro" -v "$BENCH/seed-builder:/seed-builder:ro" \
+  "$IMAGE" sh -c 'redis-server --daemonize yes --save "" --appendonly no --logfile /dev/null &&
+                  bin/rails db:prepare && bin/rails runner /seed-builder/build.rb default'
+
+rm -f "$TMP/db/production.sqlite3-wal" "$TMP/db/production.sqlite3-shm"
+mv "$TMP/db/labels.json" "$TMP/labels.json"
+rm -rf "$OUT"; mv "$TMP" "$OUT"
+echo "make-seed: $OUT ($(du -sh "$OUT" | cut -f1))" >&2

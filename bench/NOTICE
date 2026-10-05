@@ -1,0 +1,8 @@
+Third-party code in bench/ (all MIT licensed, Copyright (c) 37signals, LLC; see loadgen/MIT-LICENSE):
+
+  loadgen/          from https://github.com/basecamp/once-campfire-rust bench/loadgen
+                    (commit 64f86353021145b63849fb1cd93adeb08f3b8dbb), unmodified
+  seed-builder/     from the same repo, parity/seeds/{build.rb,default.rb,lib/seed.rb}, unmodified
+  env.reference     from the same repo, parity/.env.reference (test-only keys), unmodified
+  black_hole.jpg    from https://github.com/basecamp/once-campfire test/fixtures/files
+                    (commit 90b330024dec3e757c79b6a7e6568f93da8e3148)

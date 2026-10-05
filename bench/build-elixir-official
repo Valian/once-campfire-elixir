@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Build basecamp/once-campfire-elixir as campfire-elixir:release, natively for this machine's arch
+# (its Dockerfile hardcodes the x86_64 Thruster binary; this swaps in the host arch's). ~3 min on an
+# M1 Pro. Needs campfire-reference:app at the same pinned reference commit (bench/make-seed builds it).
+#
+# Env: ELIXIR_COMMIT (default b6b82e5, 2026-10-04), ELIXIR_DIR (default bench/.cache/once-campfire-elixir)
+set -euo pipefail
+
+BENCH=$(cd "$(dirname "$0")" && pwd)
+ELIXIR_COMMIT=${ELIXIR_COMMIT:-b6b82e50a653c4060136bb04e805eb78fd76ba10}
+DIR=${ELIXIR_DIR:-$BENCH/.cache/once-campfire-elixir}
+
+[ -d "$DIR/.git" ] || git clone https://github.com/basecamp/once-campfire-elixir.git "$DIR"
+cd "$DIR"
+git fetch -q origin || true
+git -c advice.detachedHead=false checkout -q "$ELIXIR_COMMIT"
+git submodule update --init reference
+
+case "$(docker info --format '{{.Architecture}}')" in aarch64|arm64) arch=aarch64-linux ;; *) arch=x86_64-linux ;; esac
+docker build -f Dockerfile.dev -t campfire-elixir:toolchain .
+bin/mix local.hex --force
+bin/mix local.rebar --force
+bin/mix deps.get
+bin/export-assets   # checks campfire-reference:app's GIT_REVISION matches the reference submodule
+sed "s/x86_64-linux/$arch/g" Dockerfile > .Dockerfile.native
+docker build -f .Dockerfile.native --build-arg GIT_REVISION="$(git rev-parse HEAD)" -t campfire-elixir:release .
