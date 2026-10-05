@@ -10,6 +10,7 @@ defmodule Campfire.Application do
         Campfire.Repo.Setup,
         replica(),
         {Phoenix.PubSub, name: Campfire.PubSub},
+        CampfireWeb.Cable.Pinger,
         Campfire.Accounts.SessionCache,
         CampfireWeb.RateLimiter,
         CampfireWeb.Endpoint
