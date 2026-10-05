@@ -18,7 +18,9 @@ database and Active Storage directory, unchanged. `docs/SPEC.md` is the contract
 | `Campfire.RichText` (+ `HTML`, `Sanitizer`, `Attachments`, `Autolink`, `PlainText`) | Action Text bodies → presentation / plain text / editor value over one LazyHTML-parsed tree (§9) |
 | `Campfire.Storage` (+ `Files`, `Variation`) | Active Storage: keys and paths, signed blob/variation URLs, `store_upload/1`, variants (`ensure_variant/2`, libvips via vix), `purge_attachments!/3` |
 | `Campfire.Signing` | Rails MessageVerifier: `signed_id/2`, `signed_stream_name/1`, `gid_param/2`, `sgid/2`, plus `envelope/3` + `sign/4` + `verify/4` for Active Storage |
-| `CampfireWeb.Endpoint` | `/up` (before everything), `/assets` (Plug.Static, `.gz` siblings, immutable), parsers, cookie session `_campfire_session` |
+| `CampfireWeb.Endpoint` | `/up` (before everything), `/assets` (css/js from memory via `AssetCache`, the rest Plug.Static; `.gz` siblings, immutable), `Gzip`, parsers, cookie session `_campfire_session` |
+| `CampfireWeb.AssetCache` | digested `.css`/`.js` (+ `.gz`) read into `:persistent_term` at boot and served from there; other paths fall through to Plug.Static |
+| `CampfireWeb.Gzip` | gzips response bodies at zlib level 3 (Bandit's gzip is fixed at 6); leaves zstd-capable clients to Bandit |
 | `CampfireWeb.Router` | `:browser` pipeline (+ `:authenticated`) |
 | `CampfireWeb.UserAuth` | `fetch_current_user` / `require_authenticated_user` plugs, `log_in_user`, `log_out_user`, `disconnect_cable/1` |
 | `CampfireWeb.Plugs` | `authenticity_token` → CSRF, `X-Version`/`X-Rev`, banned-IP 429, `@turbo_frame` |
@@ -69,8 +71,10 @@ for raw SQL): comparisons are on TEXT. In tests the Replica reads through `Campf
 - Cable: broadcast after commit with `CampfireWeb.Cable.broadcast/2` or `broadcast_many/2` (render once; never
   per recipient). To drop a user's sockets (sign-out, membership removal) call
   `UserAuth.disconnect_cable/1`: every socket follows `"user_connections:#{user_id}"`.
-- Responses are gzipped by Bandit (`Accept-Encoding`). For already-compressed bodies (webp, png)
-  set `content-encoding`/`cache-control: no-transform` or use `send_file` (not compressed).
+- Responses are gzipped by `CampfireWeb.Gzip` (level 3), or by Bandit (zstd, deflate). For already-compressed
+  bodies (webp, png) set `content-encoding`/`cache-control: no-transform` or use `send_file` (not compressed).
+- Assets in `priv/static/assets` are digested and never change in place (new content, new name):
+  `AssetCache` loads them once at boot. Performance notes and measurements: `bench/PERF.md`.
 - Signed values (avatar tokens, stream names) via `Campfire.Signing`, keyed from `SECRET_KEY_BASE`.
 - `bin/extract-assets` regenerates `priv/static` from `campfire-reference:app`; never re-digest.
 - Tests copy `bench/seed` (or `SEED_DIR`) to `tmp/test.sqlite3` and `tmp/test_storage` before boot; use `label/1` for seed ids,
