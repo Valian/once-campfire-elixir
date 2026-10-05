@@ -12,6 +12,7 @@ defmodule Campfire.Application do
         {Phoenix.PubSub, name: Campfire.PubSub},
         Campfire.Accounts.SessionCache,
         CampfireWeb.RateLimiter,
+        CampfireWeb.MessageRenderer,
         CampfireWeb.Endpoint
       ]
       |> Enum.reject(&is_nil/1)
