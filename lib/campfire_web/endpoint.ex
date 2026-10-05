@@ -34,6 +34,9 @@ defmodule CampfireWeb.Endpoint do
 
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
+  # Gzip at level 3 instead of Bandit's fixed level 6 (see the module).
+  plug CampfireWeb.Gzip, level: 3
+
   # Uploads (message attachments, avatars): Rails sets no limit; 100 MB is plenty for chat.
   plug Plug.Parsers,
     parsers: [:urlencoded, {:multipart, length: 100_000_000}, :json],
