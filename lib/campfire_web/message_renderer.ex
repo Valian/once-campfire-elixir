@@ -23,7 +23,7 @@ defmodule CampfireWeb.MessageRenderer do
   alias CampfireWeb.MessageComponents
 
   @table __MODULE__
-  @max_entries 4000
+  @max_entries 2000
 
   @type ctx :: %{csrf: binary, base_url: binary}
 
@@ -87,11 +87,8 @@ defmodule CampfireWeb.MessageRenderer do
 
     missing = for {key, m} <- keyed, cached[m.id] == nil, do: {key, m}
     fresh = render_missing(missing)
-    {csrf_hole, url_hole} = holes()
 
-    Enum.map(messages, fn %Message{id: id} ->
-      (cached[id] || fresh[id]) |> fill(ctx, csrf_hole, url_hole)
-    end)
+    Enum.map(messages, fn %Message{id: id} -> fill(cached[id] || fresh[id], ctx) end)
   end
 
   def render_one(%Message{} = message, ctx), do: render([message], ctx)
@@ -248,7 +245,7 @@ defmodule CampfireWeb.MessageRenderer do
     end)
   end
 
-  defp fill(parts, %{csrf: csrf, base_url: base_url}, _c, _u) do
+  defp fill(parts, %{csrf: csrf, base_url: base_url}) do
     Enum.map(parts, fn
       :csrf -> csrf
       :base_url -> base_url

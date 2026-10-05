@@ -19,10 +19,12 @@ defmodule CampfireWeb.MessageController do
     page =
       cond do
         id = presence(params["before"]) ->
-          with %Message{} = m <- find(room, id), do: Messages.page_before(room, m)
+          with %Message{} = m <- Messages.get_in_room(room.id, id),
+               do: Messages.page_before(room, m)
 
         id = presence(params["after"]) ->
-          with %Message{} = m <- find(room, id), do: Messages.page_after(room, m)
+          with %Message{} = m <- Messages.get_in_room(room.id, id),
+               do: Messages.page_after(room, m)
 
         true ->
           Messages.last_page(room)
@@ -54,7 +56,6 @@ defmodule CampfireWeb.MessageController do
 
     with %{room: room} <- Lookup.membership(user.id, room_id),
          {:ok, message} <- Messages.create_message(room, user, params["message"] || %{}) do
-      [message] = Messages.with_creator([message], room)
       MessageBroadcasts.created(conn, message, room)
 
       html = MessageRenderer.render_one(message, MessageRenderer.ctx(conn))

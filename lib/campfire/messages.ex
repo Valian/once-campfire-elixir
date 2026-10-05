@@ -75,6 +75,12 @@ defmodule Campfire.Messages do
     messages |> Replica.preload(:creator) |> Enum.map(&%{&1 | room: room})
   end
 
+  @doc """
+  Loads `creator` and `room`, which `CampfireWeb.MessageRenderer.render/2` needs, on messages
+  from any rooms (search results).
+  """
+  def for_rendering(messages), do: Replica.preload(messages, [:creator, :room])
+
   @doc "Whether the room has more than a page of messages (Rails `paged?`)."
   def paged?(room_id),
     do: Replica.exists?(from m in in_room(room_id), offset: @page_size, select: 1)
@@ -150,6 +156,9 @@ defmodule Campfire.Messages do
   @doc """
   Posts a message: `attrs` has `"body"` (HTML or plain text), `"attachment"` (a `Plug.Upload`)
   and `"client_message_id"`. Marks the room unread for members who aren't looking at it.
+
+  The message comes back with everything the partial needs already set (creator, room, body,
+  attachment, no boosts), so rendering it takes no queries.
   """
   def create_message(%Room{} = room, %User{} = creator, attrs) do
     body = presence(attrs["body"])
@@ -172,23 +181,28 @@ defmodule Campfire.Messages do
         updated_at: now
       }
 
-      {:ok, message} =
-        Repo.transaction(fn ->
-          message = Repo.insert!(message)
-          if body, do: insert_body!(message, body, tree, now)
-          if blob, do: insert_attachment!(message, blob, thumb)
-          touch_room!(room.id, now)
+      Repo.transaction(fn ->
+        message = Repo.insert!(message)
+        rich_text = if body, do: insert_body!(message, body, tree, now)
+        attachment = if blob, do: insert_attachment!(message, blob, thumb)
+        touch_room!(room.id, now)
 
-          Repo.query!("INSERT INTO message_search_index(rowid, body) VALUES (?, ?)", [
-            message.id,
-            plain
-          ])
+        Repo.query!("INSERT INTO message_search_index(rowid, body) VALUES (?, ?)", [
+          message.id,
+          plain
+        ])
 
-          mark_unread!(room.id, creator.id, now)
+        mark_unread!(room.id, creator.id, now)
+
+        %{
           message
-        end)
-
-      {:ok, message}
+          | creator: creator,
+            room: room,
+            rich_text: rich_text,
+            attachment: attachment,
+            boosts: []
+        }
+      end)
     end
   end
 
@@ -211,10 +225,12 @@ defmodule Campfire.Messages do
 
   defp insert_attachment!(message, blob, thumb) do
     blob = Storage.insert_blob!(blob)
-    Storage.attach!(blob, "Message", message.id, "attachment")
+    attachment = Storage.attach!(blob, "Message", message.id, "attachment")
 
     with {transformations, variant} <- thumb,
          do: Storage.insert_variant!(blob, transformations, variant)
+
+    %{attachment | blob: blob}
   end
 
   # Stored as submitted, except that attachments lose their inner HTML (Action Text's canonical form).
