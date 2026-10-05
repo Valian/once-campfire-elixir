@@ -28,11 +28,11 @@ defmodule CampfireWeb.RoomController do
   def show(conn, params) do
     user = conn.assigns.current_user
 
-    case Rooms.get_membership(user.id, params["room_id"] || params["id"]) do
+    case Rooms.get_room_for_user(user.id, params["room_id"] || params["id"]) do
       nil ->
         conn |> put_flash(:alert, "Room not found or inaccessible") |> redirect(to: ~p"/")
 
-      %{room: room} ->
+      room ->
         messages =
           case params["message_id"] && Messages.get_in_room(room.id, params["message_id"]) do
             %Message{} = message -> Messages.page_around(room, message)

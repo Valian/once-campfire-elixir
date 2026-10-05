@@ -56,7 +56,12 @@ defmodule Campfire.Searches do
 
   @doc "The user's recent searches, newest first."
   def recent(user_id) do
-    Replica.all(from s in Search, where: s.user_id == ^user_id, order_by: [desc: s.updated_at])
+    Replica.all(
+      from s in Search,
+        where: s.user_id == ^user_id,
+        order_by: [desc: s.updated_at],
+        select: [:id, :query]
+    )
   end
 
   @doc """

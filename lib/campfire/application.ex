@@ -4,6 +4,10 @@ defmodule Campfire.Application do
 
   @impl true
   def start(_type, _args) do
+    # Off in dev, so assets changed on disk are served as they are (Plug.Static).
+    if Application.get_env(:campfire, :cache_assets, true),
+      do: :ok = CampfireWeb.AssetCache.load()
+
     children =
       [
         Campfire.Repo,

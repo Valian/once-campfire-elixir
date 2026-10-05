@@ -1,0 +1,410 @@
+date: 2026-10-05T20:50:11.918124
+mode: native (bench/run-native), bare processes, loopback
+host: g36-1, 7.0.0-38-generic, 12th Gen Intel(R) Core(TM) i5-12500, 12 threads, 62GB, Ubuntu 26.04.1 LTS
+governor: powersave 0
+server cpus: 4-7 (siblings 4-5 6-7; process model for 4 cpus); loadgen cpus: 8-11 (siblings 10-11 8-9); harness: 0-3
+suites: ['http', 'cable', 'upload'] http secs 5 concs ['1', '16', '64'] gzip 1 cable ['100', '500', '1000']
+env: WEB_CONCURRENCY=3 JOB_CONCURRENCY=3 RAILS_MAX_THREADS=5 
+loadgen: eaa05fc8921b10400f34d78c31e5775e963a32d3 (dirty: 7 files) (bench/loadgen)
+redis (external, shared, FLUSHALL per run): redis://127.0.0.1:6379/0 redis 7.4.11
+thruster: /home/hermes/Projects/campfire-bench/reference/vendor/bundle/ruby/3.4.0/gems/thruster-0.1.23-x86_64-linux/exe/x86_64-linux/thrust
+reference: /home/hermes/Projects/campfire-bench/reference @ 90b330024dec3e757c79b6a7e6568f93da8e3148; ruby 3.4.10 (2026-06-30 revision 2b0b7728dc) +PRISM [x86_64-linux]; jemalloc /usr/lib/x86_64-linux-gnu/libjemalloc.so.2; libvips 8.18.0
+go: /home/hermes/orca/workspaces/once-campfire-elixir/server-results/bench/.cache/once-campfire-go @ 8d2f7f24f56dac87dba0211b68b14d9e21e4b516; binary /home/hermes/orca/workspaces/once-campfire-elixir/server-results/bench/.cache/once-campfire-go/.native/bin/campfire sha256 f8ffe1419294abc7bcb57365e983e33098e960ffc670c9e3d1aa5b0dfab91d7e; GOMAXPROCS=4; public front end on 4390, application on 4391; LOG_REQUESTS=true; libvips 8.18.0
+go build info:
+/home/hermes/orca/workspaces/once-campfire-elixir/server-results/bench/.cache/once-campfire-go/.native/bin/campfire: go1.27.1
+	path	github.com/basecamp/once-campfire-go/cmd/campfire
+	mod	github.com/basecamp/once-campfire-go	v0.0.0-20261005115018-8d2f7f24f56d	
+	dep	github.com/coder/websocket	v1.8.15
+	=>	./third_party/websocket	(devel)	
+	
+	dep	github.com/mattn/go-sqlite3	v1.14.52	h1:wVbm2Qnf4OXkqhBTSPuCRZDRnxfbVrrmiCEroVdog8U=
+	dep	golang.org/x/crypto	v0.57.1-0.20260918190515-b4dcfb54b863	h1:3kG0LLrOfvMqZ37MbeJ/uDk5H6tH2L02vx/OcCQ5i2A=
+	dep	golang.org/x/net	v0.59.0	h1:5zfYln+w5XCxwrnMMJPufRgNoXEaGxl0wo5GqPXyues=
+	dep	golang.org/x/text	v0.42.0	h1:JbOZXgfeCPU9gacVtYliJqOhD+zhrEqK4LfdpmlUZqI=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-tags=sqlite_fts5
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+	build	GOARCH=amd64
+	build	GOOS=linux
+	build	GOAMD64=v1
+	build	vcs=git
+	build	vcs.revision=8d2f7f24f56dac87dba0211b68b14d9e21e4b516
+	build	vcs.time=2026-10-05T11:50:18Z
+	build	vcs.modified=false
+elixir-official: /home/hermes/Projects/campfire-bench/elixir-official @ b6b82e50a653c4060136bb04e805eb78fd76ba10; release erts-16.4 elixir-1.19.5; ELIXIR_ERL_OPTIONS="+S 4:4 +SDcpu 4:4"; VM under taskset 4-7: schedulers_online=4/4 dirty_cpu_schedulers_online=4 dirty_io_schedulers=10 otp=28 elixir=1.19.5
+ours: /home/hermes/orca/workspaces/once-campfire-elixir/server-results @ eaa05fc8921b10400f34d78c31e5775e963a32d3 (dirty: 7 files); release erts-16.4 elixir-1.19.5; ELIXIR_ERL_OPTIONS="+S 4:4 +SDcpu 4:4"; VM under taskset 4-7: schedulers_online=4/4 dirty_cpu_schedulers_online=4 dirty_io_schedulers=10 otp=28 elixir=1.19.5
+[20:50:42] load before run: 2.81 2.91 2.20 2/1088 2202071 (waited 30s)
+[20:50:55] reference rep 1: puma workers 3 (OS threads per worker [12, 12, 13], RAILS_MAX_THREADS 5); resque workers 2; 10 processes: jobs, other, puma, thrust
+[20:50:55] reference rep 1: cold start 2688ms, idle PSS 317MB RSS 990MB in 10 processes
+[20:51:03] reference rep 1: room_show c=1 69.8 rps p50 13.887 p99 24.335 {'200': 350} err 0
+[20:51:08] reference rep 1: room_show c=16 142.2 rps p50 111.807 p99 278.783 {'200': 720} err 0
+[20:51:14] reference rep 1: room_show c=64 134.0 rps p50 450.303 p99 650.751 {'200': 730} err 0
+[20:51:21] reference rep 1: messages_page c=1 126.3 rps p50 7.435 p99 14.911 {'200': 632} err 0
+[20:51:26] reference rep 1: messages_page c=16 267.1 rps p50 58.111 p99 127.359 {'200': 1345} err 0
+[20:51:31] reference rep 1: messages_page c=64 262.5 rps p50 241.151 p99 298.495 {'200': 1367} err 0
+[20:51:38] reference rep 1: sidebar c=1 181.5 rps p50 5.371 p99 6.979 {'200': 908} err 0
+[20:51:43] reference rep 1: sidebar c=16 371.0 rps p50 42.335 p99 63.903 {'200': 1868} err 0
+[20:51:48] reference rep 1: sidebar c=64 370.1 rps p50 178.943 p99 218.495 {'200': 1914} err 0
+[20:51:55] reference rep 1: search c=1 132.6 rps p50 7.427 p99 9.247 {'200': 664} err 0
+[20:52:00] reference rep 1: search c=16 271.1 rps p50 56.703 p99 100.223 {'200': 1369} err 0
+[20:52:05] reference rep 1: search c=64 271.5 rps p50 232.063 p99 273.151 {'200': 1416} err 0
+[20:52:12] reference rep 1: avatar c=1 17964.4 rps p50 0.051 p99 0.167 {'200': 89823} err 0
+[20:52:17] reference rep 1: avatar c=16 51270.9 rps p50 0.219 p99 1.332 {'200': 256372} err 0
+[20:52:22] reference rep 1: avatar c=64 41299.9 rps p50 0.815 p99 8.687 {'200': 206579} err 0
+[20:52:29] reference rep 1: static_css c=1 23323.9 rps p50 0.04 p99 0.103 {'200': 116621} err 0
+[20:52:34] reference rep 1: static_css c=16 66204.8 rps p50 0.179 p99 1.023 {'200': 331064} err 0
+[20:52:39] reference rep 1: static_css c=64 56804.4 rps p50 0.706 p99 5.767 {'200': 284104} err 0
+[20:52:46] reference rep 1: up c=1 1429.8 rps p50 0.668 p99 1.122 {'200': 7149} err 0
+[20:52:51] reference rep 1: up c=16 2895.7 rps p50 5.355 p99 10.479 {'200': 14495} err 0
+[20:52:56] reference rep 1: up c=64 2854.5 rps p50 21.887 p99 33.791 {'200': 14339} err 0
+[20:53:03] reference rep 1: post_message c=1 106.8 rps p50 8.247 p99 33.599 {'200': 534} err 0
+[20:53:09] reference rep 1: post_message c=16 168.7 rps p50 88.639 p99 222.335 {'200': 852} err 0
+[20:53:14] reference rep 1: post_message c=64 161.6 rps p50 320.511 p99 723.455 {'200': 870} err 0
+[20:53:36] reference rep 1: cable 100 clients ready 100 lat p50 31.135 p99 63.423 tput 58.3 msg/s 877/877
+[20:54:02] reference rep 1: cable 500 clients ready 500 lat p50 73.279 p99 135.167 tput 17.3 msg/s 264/264
+[20:54:28] reference rep 1: cable 1000 clients ready 1000 lat p50 132.863 p99 238.975 tput 9.3 msg/s 142/142
+[20:54:31] reference rep 1: upload median 68.9ms
+[20:54:31] reference rep 1: done -> bench/results/linux-20261005-205011-with-go/reference-1.json
+[20:55:01] load before run: 2.87 3.27 2.54 1/1093 2205650 (waited 30s)
+[20:55:12] elixir-official rep 1: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 2 processes: beam, thrust
+[20:55:12] elixir-official rep 1: cold start 565ms, idle PSS 147MB RSS 183MB in 2 processes; beam: 4 schedulers
+[20:55:19] elixir-official rep 1: room_show c=1 225.4 rps p50 4.435 p99 4.863 {'200': 1128} err 0
+[20:55:24] elixir-official rep 1: room_show c=16 472.6 rps p50 33.567 p99 44.287 {'200': 2373} err 0
+[20:55:29] elixir-official rep 1: room_show c=64 469.6 rps p50 135.423 p99 152.063 {'200': 2400} err 0
+[20:55:36] elixir-official rep 1: messages_page c=1 312.8 rps p50 3.183 p99 3.487 {'200': 1565} err 0
+[20:55:41] elixir-official rep 1: messages_page c=16 633.6 rps p50 25.023 p99 37.311 {'200': 3179} err 0
+[20:55:46] elixir-official rep 1: messages_page c=64 631.0 rps p50 100.607 p99 120.767 {'200': 3204} err 0
+[20:55:53] elixir-official rep 1: sidebar c=1 607.9 rps p50 1.63 p99 1.916 {'200': 3040} err 0
+[20:55:58] elixir-official rep 1: sidebar c=16 808.8 rps p50 19.647 p99 25.455 {'200': 4055} err 0
+[20:56:03] elixir-official rep 1: sidebar c=64 834.8 rps p50 76.991 p99 86.463 {'200': 4225} err 0
+[20:56:10] elixir-official rep 1: search c=1 447.0 rps p50 2.217 p99 2.539 {'200': 2235} err 0
+[20:56:15] elixir-official rep 1: search c=16 771.8 rps p50 20.655 p99 25.519 {'200': 3870} err 0
+[20:56:20] elixir-official rep 1: search c=64 772.0 rps p50 82.559 p99 90.751 {'200': 3906} err 0
+[20:56:27] elixir-official rep 1: avatar c=1 18779.6 rps p50 0.049 p99 0.155 {'200': 93900} err 0
+[20:56:32] elixir-official rep 1: avatar c=16 52466.5 rps p50 0.21 p99 1.388 {'200': 262350} err 0
+[20:56:37] elixir-official rep 1: avatar c=64 42424.6 rps p50 0.726 p99 8.847 {'200': 212215} err 0
+[20:56:44] elixir-official rep 1: static_css c=1 23038.7 rps p50 0.04 p99 0.101 {'200': 115195} err 0
+[20:56:49] elixir-official rep 1: static_css c=16 66123.1 rps p50 0.18 p99 1.043 {'200': 330639} err 0
+[20:56:54] elixir-official rep 1: static_css c=64 55984.3 rps p50 0.68 p99 6.027 {'200': 280005} err 0
+[20:57:01] elixir-official rep 1: up c=1 2549.3 rps p50 0.386 p99 0.554 {'200': 12747} err 0
+[20:57:06] elixir-official rep 1: up c=16 4881.2 rps p50 3.137 p99 7.731 {'200': 24419} err 0
+[20:57:11] elixir-official rep 1: up c=64 5113.3 rps p50 11.831 p99 27.823 {'200': 25630} err 0
+[20:57:18] elixir-official rep 1: post_message c=1 265.9 rps p50 3.421 p99 15.839 {'200': 1330} err 0
+[20:57:23] elixir-official rep 1: post_message c=16 464.1 rps p50 30.479 p99 56.159 {'200': 2336} err 0
+[20:57:28] elixir-official rep 1: post_message c=64 495.2 rps p50 129.919 p99 145.407 {'200': 2508} err 0
+[20:57:51] elixir-official rep 1: cable 100 clients ready 100 lat p50 5.903 p99 17.295 tput 237.1 msg/s 3559/3559
+[20:58:15] elixir-official rep 1: cable 500 clients ready 500 lat p50 19.007 p99 60.927 tput 86.6 msg/s 1302/1302
+[20:58:40] elixir-official rep 1: cable 1000 clients ready 1000 lat p50 28.367 p99 57.663 tput 47.1 msg/s 708/708
+[20:58:42] elixir-official rep 1: upload median 88.4ms
+[20:58:43] elixir-official rep 1: done -> bench/results/linux-20261005-205011-with-go/elixir-official-1.json
+[20:59:43] load before run: 2.56 3.72 2.98 6/1082 2208802 (waited 60s)
+[20:59:53] go rep 1: 1 processes: go
+[20:59:53] go rep 1: cold start 64ms, idle PSS 31MB RSS 43MB in 1 processes
+[21:00:01] go rep 1: room_show c=1 692.7 rps p50 1.414 p99 2.177 {'200': 3464} err 0
+[21:00:06] go rep 1: room_show c=16 1731.7 rps p50 6.823 p99 36.095 {'200': 8672} err 0
+[21:00:11] go rep 1: room_show c=64 1724.2 rps p50 35.039 p99 87.807 {'200': 8682} err 0
+[21:00:18] go rep 1: messages_page c=1 928.8 rps p50 1.054 p99 1.787 {'200': 4644} err 0
+[21:00:23] go rep 1: messages_page c=16 2232.4 rps p50 5.523 p99 24.463 {'200': 11175} err 0
+[21:00:28] go rep 1: messages_page c=64 2226.8 rps p50 26.207 p99 82.879 {'200': 11198} err 0
+[21:00:35] go rep 1: sidebar c=1 2837.0 rps p50 0.343 p99 0.751 {'200': 14186} err 0
+[21:00:40] go rep 1: sidebar c=16 8487.8 rps p50 1.562 p99 5.911 {'200': 42457} err 0
+[21:00:45] go rep 1: sidebar c=64 8896.6 rps p50 6.935 p99 13.423 {'200': 44536} err 0
+[21:00:52] go rep 1: search c=1 1170.1 rps p50 0.832 p99 1.515 {'200': 5851} err 0
+[21:00:57] go rep 1: search c=16 3081.2 rps p50 3.939 p99 16.311 {'200': 15420} err 0
+[21:01:02] go rep 1: search c=64 3080.6 rps p50 19.551 p99 46.815 {'200': 15475} err 0
+[21:01:09] go rep 1: avatar c=1 27768.8 rps p50 0.033 p99 0.083 {'200': 138846} err 0
+[21:01:14] go rep 1: avatar c=16 101768.9 rps p50 0.119 p99 0.7 {'200': 508882} err 0
+[21:01:19] go rep 1: avatar c=64 101319.9 rps p50 0.447 p99 3.045 {'200': 506738} err 0
+[21:01:26] go rep 1: static_css c=1 38122.8 rps p50 0.024 p99 0.044 {'200': 190617} err 0
+[21:01:31] go rep 1: static_css c=16 142389.5 rps p50 0.087 p99 0.411 {'200': 711996} err 0
+[21:01:36] go rep 1: static_css c=64 145211.4 rps p50 0.302 p99 2.097 {'200': 726236} err 0
+[21:01:43] go rep 1: up c=1 22285.7 rps p50 0.042 p99 0.089 {'200': 111430} err 0
+[21:01:48] go rep 1: up c=16 75553.7 rps p50 0.167 p99 0.876 {'200': 377797} err 0
+[21:01:53] go rep 1: up c=64 75622.1 rps p50 0.629 p99 3.571 {'200': 378210} err 0
+[21:02:00] go rep 1: post_message c=1 776.7 rps p50 0.712 p99 15.967 {'200': 3885} err 0
+[21:02:05] go rep 1: post_message c=16 1498.6 rps p50 4.367 p99 41.503 {'200': 7498} err 0
+[21:02:10] go rep 1: post_message c=64 1480.6 rps p50 35.167 p99 189.439 {'200': 7466} err 0
+[21:02:32] go rep 1: cable 100 clients ready 100 lat p50 6.251 p99 7.591 tput 698.5 msg/s 10481/10481
+[21:02:56] go rep 1: cable 500 clients ready 500 lat p50 9.951 p99 27.327 tput 285.3 msg/s 4285/4285
+[21:03:21] go rep 1: cable 1000 clients ready 1000 lat p50 14.039 p99 48.159 tput 160.3 msg/s 2410/2410
+[21:03:23] go rep 1: upload median 38.6ms
+[21:03:23] go rep 1: done -> bench/results/linux-20261005-205011-with-go/go-1.json
+[21:03:43] load before run: 2.95 3.61 3.11 1/1070 2211539 (waited 20s)
+[21:03:54] ours rep 1: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 1 processes: beam
+[21:03:54] ours rep 1: cold start 586ms, idle PSS 160MB RSS 201MB in 1 processes; beam: 4 schedulers
+[21:04:01] ours rep 1: room_show c=1 492.1 rps p50 2.01 p99 2.331 {'200': 2461} err 0
+[21:04:06] ours rep 1: room_show c=16 1217.3 rps p50 12.959 p99 18.415 {'200': 6101} err 0
+[21:04:11] ours rep 1: room_show c=64 1185.6 rps p50 53.567 p99 60.543 {'200': 5981} err 0
+[21:04:18] ours rep 1: messages_page c=1 622.7 rps p50 1.606 p99 1.854 {'200': 3114} err 0
+[21:04:23] ours rep 1: messages_page c=16 1464.7 rps p50 10.863 p99 15.767 {'200': 7333} err 0
+[21:04:28] ours rep 1: messages_page c=64 1424.1 rps p50 44.703 p99 52.287 {'200': 7174} err 0
+[21:04:35] ours rep 1: sidebar c=1 1082.0 rps p50 0.951 p99 1.09 {'200': 5411} err 0
+[21:04:40] ours rep 1: sidebar c=16 2399.0 rps p50 6.635 p99 8.743 {'200': 12006} err 0
+[21:04:45] ours rep 1: sidebar c=64 2164.1 rps p50 29.439 p99 32.719 {'200': 10868} err 0
+[21:04:52] ours rep 1: search c=1 775.1 rps p50 1.299 p99 1.466 {'200': 3876} err 0
+[21:04:57] ours rep 1: search c=16 1494.2 rps p50 10.551 p99 13.423 {'200': 7484} err 0
+[21:05:02] ours rep 1: search c=64 1744.1 rps p50 36.607 p99 41.503 {'200': 8762} err 0
+[21:05:09] ours rep 1: avatar c=1 15827.5 rps p50 0.062 p99 0.079 {'200': 79139} err 0
+[21:05:14] ours rep 1: avatar c=16 37129.9 rps p50 0.429 p99 0.633 {'200': 185670} err 0
+[21:05:19] ours rep 1: avatar c=64 37316.8 rps p50 1.705 p99 1.98 {'200': 186662} err 0
+[21:05:26] ours rep 1: static_css c=1 31326.7 rps p50 0.031 p99 0.037 {'200': 156635} err 0
+[21:05:31] ours rep 1: static_css c=16 89668.7 rps p50 0.176 p99 0.237 {'200': 448374} err 0
+[21:05:36] ours rep 1: static_css c=64 88333.1 rps p50 0.719 p99 0.791 {'200': 441754} err 0
+[21:05:43] ours rep 1: up c=1 31047.9 rps p50 0.031 p99 0.041 {'200': 155245} err 0
+[21:05:48] ours rep 1: up c=16 79935.1 rps p50 0.195 p99 0.274 {'200': 399701} err 0
+[21:05:53] ours rep 1: up c=64 79476.5 rps p50 0.798 p99 0.93 {'200': 397470} err 0
+[21:06:00] ours rep 1: post_message c=1 688.3 rps p50 1.288 p99 3.527 {'200': 3442} err 0
+[21:06:05] ours rep 1: post_message c=16 990.3 rps p50 13.271 p99 62.335 {'200': 4962} err 0
+[21:06:10] ours rep 1: post_message c=64 953.6 rps p50 56.479 p99 110.015 {'200': 4850} err 0
+[21:06:32] ours rep 1: cable 100 clients ready 100 lat p50 6.859 p99 12.279 tput 585.3 msg/s 8782/8782
+[21:06:57] ours rep 1: cable 500 clients ready 500 lat p50 9.903 p99 20.751 tput 187.6 msg/s 2816/2816
+[21:07:21] ours rep 1: cable 1000 clients ready 1000 lat p50 15.975 p99 73.599 tput 100.1 msg/s 1504/1504
+[21:07:23] ours rep 1: upload median 40.4ms
+[21:07:24] ours rep 1: done -> bench/results/linux-20261005-205011-with-go/ours-1.json
+[21:08:14] load before run: 2.70 3.54 3.21 1/1071 2214491 (waited 50s)
+[21:08:25] ours rep 2: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 1 processes: beam
+[21:08:25] ours rep 2: cold start 609ms, idle PSS 158MB RSS 199MB in 1 processes; beam: 4 schedulers
+[21:08:32] ours rep 2: room_show c=1 486.3 rps p50 2.055 p99 2.309 {'200': 2432} err 0
+[21:08:37] ours rep 2: room_show c=16 1202.2 rps p50 13.119 p99 18.639 {'200': 6025} err 0
+[21:08:42] ours rep 2: room_show c=64 1177.7 rps p50 53.951 p99 60.671 {'200': 5942} err 0
+[21:08:49] ours rep 2: messages_page c=1 638.0 rps p50 1.528 p99 1.85 {'200': 3191} err 0
+[21:08:54] ours rep 2: messages_page c=16 1496.6 rps p50 10.599 p99 15.295 {'200': 7495} err 0
+[21:09:00] ours rep 2: messages_page c=64 1456.0 rps p50 43.711 p99 50.143 {'200': 7335} err 0
+[21:09:07] ours rep 2: sidebar c=1 1145.3 rps p50 0.834 p99 1.063 {'200': 5727} err 0
+[21:09:12] ours rep 2: sidebar c=16 2349.6 rps p50 6.771 p99 8.999 {'200': 11759} err 0
+[21:09:17] ours rep 2: sidebar c=64 2230.7 rps p50 28.671 p99 32.543 {'200': 11203} err 0
+[21:09:24] ours rep 2: search c=1 751.5 rps p50 1.332 p99 1.48 {'200': 3758} err 0
+[21:09:29] ours rep 2: search c=16 1789.7 rps p50 8.911 p99 11.719 {'200': 8960} err 0
+[21:09:34] ours rep 2: search c=64 1661.0 rps p50 38.399 p99 42.399 {'200': 8349} err 0
+[21:09:41] ours rep 2: avatar c=1 16513.1 rps p50 0.059 p99 0.074 {'200': 82567} err 0
+[21:09:46] ours rep 2: avatar c=16 37164.0 rps p50 0.429 p99 0.565 {'200': 185841} err 0
+[21:09:51] ours rep 2: avatar c=64 37517.1 rps p50 1.704 p99 1.799 {'200': 187664} err 0
+[21:09:58] ours rep 2: static_css c=1 31336.4 rps p50 0.031 p99 0.036 {'200': 156688} err 0
+[21:10:03] ours rep 2: static_css c=16 89992.8 rps p50 0.177 p99 0.263 {'200': 449992} err 0
+[21:10:08] ours rep 2: static_css c=64 88315.6 rps p50 0.723 p99 0.819 {'200': 441673} err 0
+[21:10:15] ours rep 2: up c=1 31972.2 rps p50 0.03 p99 0.037 {'200': 159866} err 0
+[21:10:20] ours rep 2: up c=16 81055.9 rps p50 0.196 p99 0.229 {'200': 405305} err 0
+[21:10:25] ours rep 2: up c=64 80391.4 rps p50 0.794 p99 0.872 {'200': 402042} err 0
+[21:10:32] ours rep 2: post_message c=1 735.4 rps p50 1.112 p99 3.361 {'200': 3678} err 0
+[21:10:37] ours rep 2: post_message c=16 983.6 rps p50 13.551 p99 58.847 {'200': 4929} err 0
+[21:10:42] ours rep 2: post_message c=64 952.6 rps p50 57.311 p99 129.151 {'200': 4844} err 0
+[21:11:04] ours rep 2: cable 100 clients ready 100 lat p50 6.811 p99 10.599 tput 586.0 msg/s 8792/8792
+[21:11:28] ours rep 2: cable 500 clients ready 500 lat p50 11.199 p99 16.687 tput 187.7 msg/s 2819/2819
+[21:11:53] ours rep 2: cable 1000 clients ready 1000 lat p50 14.047 p99 33.567 tput 99.0 msg/s 1488/1488
+[21:11:55] ours rep 2: upload median 42.1ms
+[21:11:56] ours rep 2: done -> bench/results/linux-20261005-205011-with-go/ours-2.json
+[21:12:36] load before run: 2.88 3.89 3.49 1/1067 2217384 (waited 40s)
+[21:12:46] go rep 2: 1 processes: go
+[21:12:46] go rep 2: cold start 43ms, idle PSS 31MB RSS 43MB in 1 processes
+[21:12:53] go rep 2: room_show c=1 691.4 rps p50 1.414 p99 2.267 {'200': 3457} err 0
+[21:12:58] go rep 2: room_show c=16 1731.4 rps p50 6.815 p99 40.767 {'200': 8671} err 0
+[21:13:03] go rep 2: room_show c=64 1718.4 rps p50 34.815 p99 102.527 {'200': 8654} err 0
+[21:13:10] go rep 2: messages_page c=1 927.5 rps p50 1.055 p99 1.829 {'200': 4638} err 0
+[21:13:15] go rep 2: messages_page c=16 2237.1 rps p50 5.367 p99 26.191 {'200': 11199} err 0
+[21:13:20] go rep 2: messages_page c=64 2225.1 rps p50 25.823 p99 88.447 {'200': 11186} err 0
+[21:13:27] go rep 2: sidebar c=1 2854.2 rps p50 0.341 p99 0.729 {'200': 14272} err 0
+[21:13:32] go rep 2: sidebar c=16 8267.8 rps p50 1.583 p99 6.075 {'200': 41353} err 0
+[21:13:37] go rep 2: sidebar c=64 8715.4 rps p50 7.047 p99 13.919 {'200': 43637} err 0
+[21:13:44] go rep 2: search c=1 1170.7 rps p50 0.832 p99 1.457 {'200': 5855} err 0
+[21:13:49] go rep 2: search c=16 3074.0 rps p50 3.845 p99 16.975 {'200': 15384} err 0
+[21:13:54] go rep 2: search c=64 3083.8 rps p50 19.631 p99 45.887 {'200': 15473} err 0
+[21:14:01] go rep 2: avatar c=1 28255.9 rps p50 0.032 p99 0.085 {'200': 141282} err 0
+[21:14:06] go rep 2: avatar c=16 103319.5 rps p50 0.117 p99 0.675 {'200': 516633} err 0
+[21:14:11] go rep 2: avatar c=64 103034.2 rps p50 0.444 p99 3.003 {'200': 515335} err 0
+[21:14:18] go rep 2: static_css c=1 38328.7 rps p50 0.024 p99 0.044 {'200': 191646} err 0
+[21:14:23] go rep 2: static_css c=16 142356.5 rps p50 0.087 p99 0.41 {'200': 711826} err 0
+[21:14:28] go rep 2: static_css c=64 145629.0 rps p50 0.291 p99 2.131 {'200': 728318} err 0
+[21:14:35] go rep 2: up c=1 22412.3 rps p50 0.042 p99 0.099 {'200': 112063} err 0
+[21:14:40] go rep 2: up c=16 75666.4 rps p50 0.167 p99 0.87 {'200': 378373} err 0
+[21:14:45] go rep 2: up c=64 75513.8 rps p50 0.624 p99 3.645 {'200': 377667} err 0
+[21:14:53] go rep 2: post_message c=1 721.5 rps p50 0.763 p99 16.071 {'200': 3620} err 0
+[21:14:58] go rep 2: post_message c=16 1465.9 rps p50 4.523 p99 43.071 {'200': 7367} err 0
+[21:15:03] go rep 2: post_message c=64 1480.7 rps p50 35.359 p99 200.063 {'200': 7480} err 0
+[21:15:25] go rep 2: cable 100 clients ready 100 lat p50 6.335 p99 9.199 tput 696.7 msg/s 10455/10455
+[21:15:49] go rep 2: cable 500 clients ready 500 lat p50 10.207 p99 26.511 tput 291.2 msg/s 4371/4371
+[21:16:13] go rep 2: cable 1000 clients ready 1000 lat p50 14.343 p99 36.415 tput 158.1 msg/s 2379/2379
+[21:16:16] go rep 2: upload median 38.6ms
+[21:16:16] go rep 2: done -> bench/results/linux-20261005-205011-with-go/go-2.json
+[21:17:06] load before run: 2.71 3.53 3.45 3/1064 2220246 (waited 50s)
+[21:17:16] elixir-official rep 2: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 2 processes: beam, thrust
+[21:17:16] elixir-official rep 2: cold start 562ms, idle PSS 144MB RSS 180MB in 2 processes; beam: 4 schedulers
+[21:17:24] elixir-official rep 2: room_show c=1 232.7 rps p50 4.255 p99 4.783 {'200': 1164} err 0
+[21:17:29] elixir-official rep 2: room_show c=16 470.7 rps p50 33.663 p99 45.119 {'200': 2366} err 0
+[21:17:34] elixir-official rep 2: room_show c=64 468.9 rps p50 135.167 p99 159.103 {'200': 2390} err 0
+[21:17:41] elixir-official rep 2: messages_page c=1 310.7 rps p50 3.207 p99 3.537 {'200': 1554} err 0
+[21:17:46] elixir-official rep 2: messages_page c=16 638.8 rps p50 24.799 p99 37.279 {'200': 3204} err 0
+[21:17:51] elixir-official rep 2: messages_page c=64 628.7 rps p50 100.863 p99 118.015 {'200': 3197} err 0
+[21:17:58] elixir-official rep 2: sidebar c=1 603.6 rps p50 1.633 p99 2.023 {'200': 3019} err 0
+[21:18:03] elixir-official rep 2: sidebar c=16 778.7 rps p50 20.415 p99 25.871 {'200': 3906} err 0
+[21:18:08] elixir-official rep 2: sidebar c=64 826.6 rps p50 77.503 p99 85.695 {'200': 4162} err 0
+[21:18:15] elixir-official rep 2: search c=1 452.9 rps p50 2.193 p99 2.473 {'200': 2265} err 0
+[21:18:20] elixir-official rep 2: search c=16 762.0 rps p50 20.895 p99 26.159 {'200': 3820} err 0
+[21:18:25] elixir-official rep 2: search c=64 777.4 rps p50 82.303 p99 94.015 {'200': 3934} err 0
+[21:18:32] elixir-official rep 2: avatar c=1 18904.8 rps p50 0.049 p99 0.151 {'200': 94525} err 0
+[21:18:37] elixir-official rep 2: avatar c=16 53467.9 rps p50 0.21 p99 1.296 {'200': 267356} err 0
+[21:18:42] elixir-official rep 2: avatar c=64 42872.8 rps p50 0.758 p99 8.631 {'200': 214433} err 0
+[21:18:49] elixir-official rep 2: static_css c=1 23070.8 rps p50 0.04 p99 0.099 {'200': 115356} err 0
+[21:18:54] elixir-official rep 2: static_css c=16 66346.2 rps p50 0.18 p99 1.031 {'200': 331764} err 0
+[21:18:59] elixir-official rep 2: static_css c=64 56440.3 rps p50 0.675 p99 6.039 {'200': 282301} err 0
+[21:19:06] elixir-official rep 2: up c=1 2568.5 rps p50 0.382 p99 0.541 {'200': 12843} err 0
+[21:19:11] elixir-official rep 2: up c=16 4857.1 rps p50 3.193 p99 7.351 {'200': 24295} err 0
+[21:19:16] elixir-official rep 2: up c=64 5075.3 rps p50 11.855 p99 27.151 {'200': 25422} err 0
+[21:19:23] elixir-official rep 2: post_message c=1 263.7 rps p50 3.455 p99 16.319 {'200': 1319} err 0
+[21:19:28] elixir-official rep 2: post_message c=16 459.1 rps p50 30.639 p99 57.567 {'200': 2304} err 0
+[21:19:33] elixir-official rep 2: post_message c=64 500.8 rps p50 127.999 p99 143.103 {'200': 2540} err 0
+[21:19:55] elixir-official rep 2: cable 100 clients ready 100 lat p50 6.039 p99 39.103 tput 238.0 msg/s 3573/3573
+[21:20:20] elixir-official rep 2: cable 500 clients ready 500 lat p50 17.199 p99 47.519 tput 85.7 msg/s 1287/1287
+[21:20:44] elixir-official rep 2: cable 1000 clients ready 1000 lat p50 25.503 p99 64.639 tput 47.0 msg/s 709/709
+[21:20:47] elixir-official rep 2: upload median 88.1ms
+[21:20:48] elixir-official rep 2: done -> bench/results/linux-20261005-205011-with-go/elixir-official-2.json
+[21:21:38] load before run: 2.55 3.54 3.50 1/1075 2223416 (waited 50s)
+[21:21:51] reference rep 2: puma workers 3 (OS threads per worker [12, 13, 12], RAILS_MAX_THREADS 5); resque workers 2; 10 processes: jobs, other, puma, thrust
+[21:21:51] reference rep 2: cold start 2690ms, idle PSS 316MB RSS 982MB in 10 processes
+[21:21:59] reference rep 2: room_show c=1 71.4 rps p50 13.607 p99 22.799 {'200': 357} err 0
+[21:22:04] reference rep 2: room_show c=16 144.7 rps p50 108.863 p99 257.279 {'200': 737} err 0
+[21:22:10] reference rep 2: room_show c=64 134.0 rps p50 472.831 p99 558.079 {'200': 724} err 0
+[21:22:17] reference rep 2: messages_page c=1 132.0 rps p50 7.359 p99 13.919 {'200': 661} err 0
+[21:22:22] reference rep 2: messages_page c=16 275.9 rps p50 55.007 p99 128.255 {'200': 1391} err 0
+[21:22:27] reference rep 2: messages_page c=64 259.7 rps p50 247.039 p99 317.439 {'200': 1357} err 0
+[21:22:34] reference rep 2: sidebar c=1 179.8 rps p50 5.427 p99 7.107 {'200': 899} err 0
+[21:22:39] reference rep 2: sidebar c=16 367.7 rps p50 43.135 p99 76.223 {'200': 1849} err 0
+[21:22:44] reference rep 2: sidebar c=64 346.2 rps p50 178.175 p99 252.543 {'200': 1790} err 0
+[21:22:51] reference rep 2: search c=1 131.4 rps p50 7.495 p99 8.911 {'200': 657} err 0
+[21:22:56] reference rep 2: search c=16 272.8 rps p50 57.887 p99 117.567 {'200': 1377} err 0
+[21:23:01] reference rep 2: search c=64 257.2 rps p50 241.663 p99 332.799 {'200': 1344} err 0
+[21:23:08] reference rep 2: avatar c=1 18105.7 rps p50 0.051 p99 0.163 {'200': 90530} err 0
+[21:23:13] reference rep 2: avatar c=16 52116.8 rps p50 0.22 p99 1.264 {'200': 260600} err 0
+[21:23:18] reference rep 2: avatar c=64 41506.5 rps p50 0.807 p99 8.607 {'200': 207615} err 0
+[21:23:25] reference rep 2: static_css c=1 23037.2 rps p50 0.04 p99 0.1 {'200': 115188} err 0
+[21:23:30] reference rep 2: static_css c=16 66875.9 rps p50 0.18 p99 0.996 {'200': 334401} err 0
+[21:23:35] reference rep 2: static_css c=64 56643.6 rps p50 0.695 p99 5.767 {'200': 283324} err 0
+[21:23:42] reference rep 2: up c=1 1439.4 rps p50 0.663 p99 1.258 {'200': 7198} err 0
+[21:23:47] reference rep 2: up c=16 2895.9 rps p50 5.395 p99 10.199 {'200': 14494} err 0
+[21:23:53] reference rep 2: up c=64 2866.3 rps p50 22.303 p99 32.511 {'200': 14394} err 0
+[21:24:00] reference rep 2: post_message c=1 106.4 rps p50 8.335 p99 31.231 {'200': 533} err 0
+[21:24:05] reference rep 2: post_message c=16 164.3 rps p50 89.279 p99 256.255 {'200': 831} err 0
+[21:24:10] reference rep 2: post_message c=64 164.1 rps p50 380.415 p99 551.423 {'200': 885} err 0
+[21:24:33] reference rep 2: cable 100 clients ready 100 lat p50 28.015 p99 59.519 tput 62.3 msg/s 939/939
+[21:24:58] reference rep 2: cable 500 clients ready 500 lat p50 71.423 p99 143.615 tput 17.6 msg/s 266/266
+[21:25:24] reference rep 2: cable 1000 clients ready 1000 lat p50 127.935 p99 250.879 tput 9.4 msg/s 144/144
+[21:25:26] reference rep 2: upload median 70.8ms
+[21:25:27] reference rep 2: done -> bench/results/linux-20261005-205011-with-go/reference-2.json
+# Results: linux-20261005-205011-with-go
+
+reference: 2 rep(s), elixir-official: 2 rep(s), go: 2 rep(s), ours: 2 rep(s)
+
+```
+date: 2026-10-05T20:50:11.918124
+mode: native (bench/run-native), bare processes, loopback
+host: g36-1, 7.0.0-38-generic, 12th Gen Intel(R) Core(TM) i5-12500, 12 threads, 62GB, Ubuntu 26.04.1 LTS
+governor: powersave 0
+server cpus: 4-7 (siblings 4-5 6-7; process model for 4 cpus); loadgen cpus: 8-11 (siblings 10-11 8-9); harness: 0-3
+suites: ['http', 'cable', 'upload'] http secs 5 concs ['1', '16', '64'] gzip 1 cable ['100', '500', '1000']
+env: WEB_CONCURRENCY=3 JOB_CONCURRENCY=3 RAILS_MAX_THREADS=5 
+loadgen: eaa05fc8921b10400f34d78c31e5775e963a32d3 (dirty: 7 files) (bench/loadgen)
+redis (external, shared, FLUSHALL per run): redis://127.0.0.1:6379/0 redis 7.4.11
+thruster: /home/hermes/Projects/campfire-bench/reference/vendor/bundle/ruby/3.4.0/gems/thruster-0.1.23-x86_64-linux/exe/x86_64-linux/thrust
+reference: /home/hermes/Projects/campfire-bench/reference @ 90b330024dec3e757c79b6a7e6568f93da8e3148; ruby 3.4.10 (2026-06-30 revision 2b0b7728dc) +PRISM [x86_64-linux]; jemalloc /usr/lib/x86_64-linux-gnu/libjemalloc.so.2; libvips 8.18.0
+go: /home/hermes/orca/workspaces/once-campfire-elixir/server-results/bench/.cache/once-campfire-go @ 8d2f7f24f56dac87dba0211b68b14d9e21e4b516; binary /home/hermes/orca/workspaces/once-campfire-elixir/server-results/bench/.cache/once-campfire-go/.native/bin/campfire sha256 f8ffe1419294abc7bcb57365e983e33098e960ffc670c9e3d1aa5b0dfab91d7e; GOMAXPROCS=4; public front end on 4390, application on 4391; LOG_REQUESTS=true; libvips 8.18.0
+go build info:
+/home/hermes/orca/workspaces/once-campfire-elixir/server-results/bench/.cache/once-campfire-go/.native/bin/campfire: go1.27.1
+	path	github.com/basecamp/once-campfire-go/cmd/campfire
+	mod	github.com/basecamp/once-campfire-go	v0.0.0-20261005115018-8d2f7f24f56d	
+	dep	github.com/coder/websocket	v1.8.15
+	=>	./third_party/websocket	(devel)	
+	
+	dep	github.com/mattn/go-sqlite3	v1.14.52	h1:wVbm2Qnf4OXkqhBTSPuCRZDRnxfbVrrmiCEroVdog8U=
+	dep	golang.org/x/crypto	v0.57.1-0.20260918190515-b4dcfb54b863	h1:3kG0LLrOfvMqZ37MbeJ/uDk5H6tH2L02vx/OcCQ5i2A=
+	dep	golang.org/x/net	v0.59.0	h1:5zfYln+w5XCxwrnMMJPufRgNoXEaGxl0wo5GqPXyues=
+	dep	golang.org/x/text	v0.42.0	h1:JbOZXgfeCPU9gacVtYliJqOhD+zhrEqK4LfdpmlUZqI=
+	build	-buildmode=exe
+	build	-compiler=gc
+	build	-tags=sqlite_fts5
+	build	-trimpath=true
+	build	CGO_ENABLED=1
+	build	GOARCH=amd64
+	build	GOOS=linux
+	build	GOAMD64=v1
+	build	vcs=git
+	build	vcs.revision=8d2f7f24f56dac87dba0211b68b14d9e21e4b516
+	build	vcs.time=2026-10-05T11:50:18Z
+	build	vcs.modified=false
+elixir-official: /home/hermes/Projects/campfire-bench/elixir-official @ b6b82e50a653c4060136bb04e805eb78fd76ba10; release erts-16.4 elixir-1.19.5; ELIXIR_ERL_OPTIONS="+S 4:4 +SDcpu 4:4"; VM under taskset 4-7: schedulers_online=4/4 dirty_cpu_schedulers_online=4 dirty_io_schedulers=10 otp=28 elixir=1.19.5
+ours: /home/hermes/orca/workspaces/once-campfire-elixir/server-results @ eaa05fc8921b10400f34d78c31e5775e963a32d3 (dirty: 7 files); release erts-16.4 elixir-1.19.5; ELIXIR_ERL_OPTIONS="+S 4:4 +SDcpu 4:4"; VM under taskset 4-7: schedulers_online=4/4 dirty_cpu_schedulers_online=4 dirty_io_schedulers=10 otp=28 elixir=1.19.5
+observed reference rep 1: puma workers 3 (OS threads per worker [12, 12, 13], RAILS_MAX_THREADS 5); resque workers 2; 10 processes: jobs, other, puma, thrust
+observed elixir-official rep 1: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 2 processes: beam, thrust
+observed go rep 1: 1 processes: go
+observed ours rep 1: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 1 processes: beam
+observed ours rep 2: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 1 processes: beam
+observed go rep 2: 1 processes: go
+observed elixir-official rep 2: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 2 processes: beam, thrust
+observed reference rep 2: puma workers 3 (OS threads per worker [12, 13, 12], RAILS_MAX_THREADS 5); resque workers 2; 10 processes: jobs, other, puma, thrust
+```
+
+## Startup and memory
+
+| metric | reference | elixir-official | go | ours |
+|---|---|---|---|---|
+| cold start to /up (ms) | 2,689 [2,688–2,690] | 564 [562–565] | 53.5 [43.0–64.0] | 598 [586–609] |
+| idle PSS (MB) | 316 [316–316] | 146 [144–147] | 30.6 [30.5–30.8] | 159 [158–160] |
+| peak PSS (MB) | 1,336 [1,302–1,371] | 552 [546–557] | 301 [215–386] | 436 [427–445] |
+| idle RSS (MB) | 986 [982–990] | 182 [180–183] | 43.0 [43.0–43.1] | 200 [199–200] |
+| peak RSS (MB) | 1,795 [1,762–1,828] | 588 [583–593] | 314 [228–399] | 477 [468–486] |
+| external Redis RSS at end (MB) | 18.4 [18.2–18.6] | 36.7 | – | – |
+
+## HTTP (median rps, p50/p99 ms)
+
+| route | conc | reference rps | reference p50 | reference p99 | reference bad | elixir-official rps | elixir-official p50 | elixir-official p99 | elixir-official bad | go rps | go p50 | go p99 | go bad | ours rps | ours p50 | ours p99 | ours bad |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| room_show | 1 | 70.6 [69.8–71.4] | 13.7 | 23.6 | 0 | 229 [225–233] | 4.34 | 4.82 | 0 | 692 [691–693] | 1.41 | 2.22 | 0 | 489 [486–492] | 2.03 | 2.32 | 0 |
+| room_show | 16 | 143 [142–145] | 110 | 268 | 0 | 472 [471–473] | 33.6 | 44.7 | 0 | 1,732 [1,731–1,732] | 6.82 | 38.4 | 0 | 1,210 [1,202–1,217] | 13.0 | 18.5 | 0 |
+| room_show | 64 | 134 | 462 | 604 | 0 | 469 [469–470] | 135 | 156 | 0 | 1,721 [1,718–1,724] | 34.9 | 95.2 | 0 | 1,182 [1,178–1,186] | 53.8 | 60.6 | 0 |
+| messages_page | 1 | 129 [126–132] | 7.40 | 14.4 | 0 | 312 [311–313] | 3.19 | 3.51 | 0 | 928 [928–929] | 1.05 | 1.81 | 0 | 630 [623–638] | 1.57 | 1.85 | 0 |
+| messages_page | 16 | 272 [267–276] | 56.6 | 128 | 0 | 636 [634–639] | 24.9 | 37.3 | 0 | 2,235 [2,232–2,237] | 5.45 | 25.3 | 0 | 1,481 [1,465–1,497] | 10.7 | 15.5 | 0 |
+| messages_page | 64 | 261 [260–262] | 244 | 308 | 0 | 630 [629–631] | 101 | 119 | 0 | 2,226 [2,225–2,227] | 26.0 | 85.7 | 0 | 1,440 [1,424–1,456] | 44.2 | 51.2 | 0 |
+| sidebar | 1 | 181 [180–182] | 5.40 | 7.04 | 0 | 606 [604–608] | 1.63 | 1.97 | 0 | 2,846 [2,837–2,854] | 0.34 | 0.74 | 0 | 1,114 [1,082–1,145] | 0.89 | 1.08 | 0 |
+| sidebar | 16 | 369 [368–371] | 42.7 | 70.1 | 0 | 794 [779–809] | 20.0 | 25.7 | 0 | 8,378 [8,268–8,488] | 1.57 | 5.99 | 0 | 2,374 [2,350–2,399] | 6.70 | 8.87 | 0 |
+| sidebar | 64 | 358 [346–370] | 179 | 236 | 0 | 831 [827–835] | 77.2 | 86.1 | 0 | 8,806 [8,715–8,897] | 6.99 | 13.7 | 0 | 2,197 [2,164–2,231] | 29.1 | 32.6 | 0 |
+| search | 1 | 132 [131–133] | 7.46 | 9.08 | 0 | 450 [447–453] | 2.21 | 2.51 | 0 | 1,170 [1,170–1,171] | 0.83 | 1.49 | 0 | 763 [752–775] | 1.32 | 1.47 | 0 |
+| search | 16 | 272 [271–273] | 57.3 | 109 | 0 | 767 [762–772] | 20.8 | 25.8 | 0 | 3,078 [3,074–3,081] | 3.89 | 16.6 | 0 | 1,642 [1,494–1,790] | 9.73 | 12.6 | 0 |
+| search | 64 | 264 [257–272] | 237 | 303 | 0 | 775 [772–777] | 82.4 | 92.4 | 0 | 3,082 [3,081–3,084] | 19.6 | 46.4 | 0 | 1,703 [1,661–1,744] | 37.5 | 42.0 | 0 |
+| avatar | 1 | 18,035 [17,964–18,106] | 0.05 | 0.17 | 0 | 18,842 [18,780–18,905] | 0.05 | 0.15 | 0 | 28,012 [27,769–28,256] | 0.03 | 0.08 | 0 | 16,170 [15,828–16,513] | 0.06 | 0.08 | 0 |
+| avatar | 16 | 51,694 [51,271–52,117] | 0.22 | 1.30 | 0 | 52,967 [52,466–53,468] | 0.21 | 1.34 | 0 | 102,544 [101,769–103,320] | 0.12 | 0.69 | 0 | 37,147 [37,130–37,164] | 0.43 | 0.60 | 0 |
+| avatar | 64 | 41,403 [41,300–41,506] | 0.81 | 8.65 | 0 | 42,649 [42,425–42,873] | 0.74 | 8.74 | 0 | 102,177 [101,320–103,034] | 0.45 | 3.02 | 0 | 37,417 [37,317–37,517] | 1.70 | 1.89 | 0 |
+| static_css | 1 | 23,181 [23,037–23,324] | 0.04 | 0.10 | 0 | 23,055 [23,039–23,071] | 0.04 | 0.10 | 0 | 38,226 [38,123–38,329] | 0.02 | 0.04 | 0 | 31,332 [31,327–31,336] | 0.03 | 0.04 | 0 |
+| static_css | 16 | 66,540 [66,205–66,876] | 0.18 | 1.01 | 0 | 66,235 [66,123–66,346] | 0.18 | 1.04 | 0 | 142,373 [142,356–142,390] | 0.09 | 0.41 | 0 | 89,831 [89,669–89,993] | 0.18 | 0.25 | 0 |
+| static_css | 64 | 56,724 [56,644–56,804] | 0.70 | 5.77 | 0 | 56,212 [55,984–56,440] | 0.68 | 6.03 | 0 | 145,420 [145,211–145,629] | 0.30 | 2.11 | 0 | 88,324 [88,316–88,333] | 0.72 | 0.80 | 0 |
+| up | 1 | 1,435 [1,430–1,439] | 0.67 | 1.19 | 0 | 2,559 [2,549–2,568] | 0.38 | 0.55 | 0 | 22,349 [22,286–22,412] | 0.04 | 0.09 | 0 | 31,510 [31,048–31,972] | 0.03 | 0.04 | 0 |
+| up | 16 | 2,896 [2,896–2,896] | 5.38 | 10.3 | 0 | 4,869 [4,857–4,881] | 3.17 | 7.54 | 0 | 75,610 [75,554–75,666] | 0.17 | 0.87 | 0 | 80,496 [79,935–81,056] | 0.20 | 0.25 | 0 |
+| up | 64 | 2,860 [2,854–2,866] | 22.1 | 33.2 | 0 | 5,094 [5,075–5,113] | 11.8 | 27.5 | 0 | 75,568 [75,514–75,622] | 0.63 | 3.61 | 0 | 79,934 [79,476–80,391] | 0.80 | 0.90 | 0 |
+| post_message | 1 | 107 [106–107] | 8.29 | 32.4 | 0 | 265 [264–266] | 3.44 | 16.1 | 0 | 749 [722–777] | 0.74 | 16.0 | 0 | 712 [688–735] | 1.20 | 3.44 | 0 |
+| post_message | 16 | 166 [164–169] | 89.0 | 239 | 0 | 462 [459–464] | 30.6 | 56.9 | 0 | 1,482 [1,466–1,499] | 4.45 | 42.3 | 0 | 987 [984–990] | 13.4 | 60.6 | 0 |
+| post_message | 64 | 163 [162–164] | 350 | 637 | 0 | 498 [495–501] | 129 | 144 | 0 | 1,481 [1,481–1,481] | 35.3 | 195 | 0 | 953 [953–954] | 56.9 | 120 | 0 |
+
+## Action Cable fan-out
+
+| clients | metric | reference | elixir-official | go | ours |
+|---|---|---|---|---|---|
+| 100 | ready | 100 | 100 | 100 | 100 |
+| 100 | connect (s) | 0.35 [0.33–0.38] | 0.08 [0.06–0.11] | 0.07 [0.06–0.08] | 0.07 [0.06–0.07] |
+| 100 | fan-out latency p50 (ms) | 29.6 [28.0–31.1] | 5.97 [5.90–6.04] | 6.29 [6.25–6.33] | 6.83 [6.81–6.86] |
+| 100 | fan-out latency p99 (ms) | 61.5 [59.5–63.4] | 28.2 [17.3–39.1] | 8.39 [7.59–9.20] | 11.4 [10.6–12.3] |
+| 100 | delivered msg/s | 60.3 [58.3–62.3] | 238 [237–238] | 698 [697–698] | 586 [585–586] |
+| 500 | ready | 500 | 500 | 500 | 500 |
+| 500 | connect (s) | 1.04 [1.01–1.06] | 0.33 [0.31–0.36] | 0.15 [0.12–0.17] | 0.21 |
+| 500 | fan-out latency p50 (ms) | 72.4 [71.4–73.3] | 18.1 [17.2–19.0] | 10.1 [9.95–10.2] | 10.6 [9.90–11.2] |
+| 500 | fan-out latency p99 (ms) | 139 [135–144] | 54.2 [47.5–60.9] | 26.9 [26.5–27.3] | 18.7 [16.7–20.8] |
+| 500 | delivered msg/s | 17.5 [17.3–17.6] | 86.2 [85.7–86.6] | 288 [285–291] | 188 [188–188] |
+| 1000 | ready | 1,000 | 1,000 | 1,000 | 1,000 |
+| 1000 | connect (s) | 1.92 [1.90–1.95] | 0.55 [0.54–0.57] | 0.20 [0.19–0.20] | 0.35 [0.33–0.38] |
+| 1000 | fan-out latency p50 (ms) | 130 [128–133] | 26.9 [25.5–28.4] | 14.2 [14.0–14.3] | 15.0 [14.0–16.0] |
+| 1000 | fan-out latency p99 (ms) | 245 [239–251] | 61.2 [57.7–64.6] | 42.3 [36.4–48.2] | 53.6 [33.6–73.6] |
+| 1000 | delivered msg/s | 9.35 [9.30–9.40] | 47.0 [47.0–47.1] | 159 [158–160] | 99.5 [99.0–100] |
+
+## Upload (black_hole.jpg, post + thumbnail)
+
+| metric | reference | elixir-official | go | ours |
+|---|---|---|---|---|
+| median total (ms) | 69.8 [68.9–70.8] | 88.2 [88.1–88.4] | 38.6 | 41.2 [40.4–42.1] |

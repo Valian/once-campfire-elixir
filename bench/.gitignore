@@ -2,3 +2,7 @@
 /.cache/
 /.work/
 /loadgen/target/
+seed
+__pycache__/
+# App stdout (Thruster logs every request): hundreds of MB per run
+results/*/.*.log

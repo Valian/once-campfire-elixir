@@ -102,6 +102,45 @@ defmodule CampfireWeb.AvatarTest do
     assert redirected_to(conn) == "/session/new"
   end
 
+  test "signed-out avatar requests return to the avatar after signing in" do
+    path = "/users/#{label("avatar_tokens.jason")}/avatar?v=123"
+    conn = get(build_conn(), path)
+    assert redirected_to(conn) == "/session/new"
+
+    login =
+      conn
+      |> recycle()
+      |> post("/session", %{
+        "email_address" => label("emails.david"),
+        "password" => label("passwords.all")
+      })
+
+    assert redirected_to(login) == path
+  end
+
+  test "image Accept headers are supported and browser security headers are preserved", %{
+    conn: conn
+  } do
+    avatar =
+      conn
+      |> put_req_header("accept", "image/webp,image/*;q=0.8,*/*;q=0.5")
+      |> get("/users/#{label("avatar_tokens.jason")}/avatar")
+
+    assert avatar.status == 200
+    assert get_resp_header(avatar, "content-type") == ["image/webp"]
+    assert get_resp_header(avatar, "x-content-type-options") == ["nosniff"]
+    assert get_resp_header(avatar, "x-version") == ["dev"]
+    assert get_resp_header(avatar, "set-cookie") == []
+  end
+
+  test "bot sessions cannot fetch cached avatars" do
+    token = label("avatar_tokens.jason")
+    assert get(sign_in(build_conn(), @david), "/users/#{token}/avatar").status == 200
+
+    conn = build_conn() |> sign_in(@bender) |> get("/users/#{token}/avatar")
+    assert conn.status == 403
+  end
+
   test "uploading an avatar on the profile, then deleting it", %{conn: conn} do
     jpeg = Campfire.Storage.path("2k7n5s996jb5k5xwhx14f5oetpj4")
     before = Repo.get!(User, @david)

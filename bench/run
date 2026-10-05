@@ -18,13 +18,12 @@ Knobs (env): CPUS=4 (docker --cpus) or CPUSET=0-3 (docker --cpuset-cpus, also ma
   UPLOAD_REPS=5 PORT=4390 SUITES="http cable upload" SETTLE_SECS=10 LOAD_MAX=8 LOAD_WAIT_SECS=60
   EXTRA_ENV="K=V K2=V2" (added to every container)
 """
-import argparse, json, math, os, resource, shutil, subprocess, sys, time, sqlite3, urllib.request
+import argparse, json, math, os, resource, shutil, subprocess, sys, time, urllib.request
 from datetime import datetime
 
-BENCH = os.path.dirname(os.path.abspath(__file__))
-SEED = os.path.join(BENCH, "seed")
-LOADGEN = os.path.join(BENCH, "loadgen", "target", "release", "loadgen")
-E = os.environ.get
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+from common import (BENCH, SEED, LOADGEN, E, HTTP_SECS, HTTP_CONCS, CABLE_CLIENTS, PORT, SUITES, SETTLE_SECS,
+                    EXTRA_ENV, BASE, log, cpuset_size, app_env, neuter_deliveries, run_suites, load_labels, write_report)
 
 IMAGES = {
     "reference": E("REFERENCE_IMAGE", "campfire-reference:app"),
@@ -33,28 +32,11 @@ IMAGES = {
 }
 CPUSET = E("CPUSET", "")
 CPUS = E("CPUS", "4")
-def cpuset_size(s):
-    return sum(int(b or a) - int(a) + 1 for a, _, b in (part.partition("-") for part in s.split(",")))
 NCPU = cpuset_size(CPUSET) if CPUSET else math.ceil(float(CPUS))
-HTTP_SECS = E("HTTP_SECS", "8")
-HTTP_CONCS = E("HTTP_CONCS", "1 16 64").split()
-CABLE_CLIENTS = E("CABLE_CLIENTS", "100 500 1000").split()
-CABLE_TPUT_SECS = E("CABLE_TPUT_SECS", "15")
-CABLE_POSTERS = E("CABLE_POSTERS", "4")
-UPLOAD_REPS = E("UPLOAD_REPS", "5")
-PORT = int(E("PORT", "4390"))
-SUITES = E("SUITES", "http cable upload").split()
-SETTLE_SECS = float(E("SETTLE_SECS", "10"))
 LOAD_MAX = float(E("LOAD_MAX", "8"))
 LOAD_WAIT_SECS = int(E("LOAD_WAIT_SECS", "60"))
-EXTRA_ENV = E("EXTRA_ENV", "").split()
-BASE = f"http://127.0.0.1:{PORT}"
 CONTAINER = f"bench-campfire-{PORT}"
 UA = []
-
-
-def log(*a):
-    print(f"[{datetime.now():%H:%M:%S}]", *a, file=sys.stderr, flush=True)
 
 
 def sh(*cmd, check=True):
@@ -67,14 +49,7 @@ def lg(*args, stderr=None):
 
 
 def env_args():
-    """bench/env.reference with the reference's default process model for NCPU cores
-    (config/puma.rb: workers = ceil(nproc * 0.666), JOB_CONCURRENCY the same, 5 threads)."""
-    workers = math.ceil(NCPU * 0.666)
-    skip = ("WEB_CONCURRENCY=", "JOB_CONCURRENCY=", "RAILS_MAX_THREADS=", "RAILS_LOG_LEVEL=")
-    env = [l.strip() for l in open(os.path.join(BENCH, "env.reference"))
-           if l.strip() and not l.startswith("#") and not l.startswith(skip)]
-    env += [f"WEB_CONCURRENCY={workers}", f"JOB_CONCURRENCY={workers}", "RAILS_MAX_THREADS=5", "RAILS_LOG_LEVEL=warn"]
-    return [x for e in env + EXTRA_ENV for x in ("-e", e)]
+    return [x for e in app_env(NCPU) for x in ("-e", e)]
 
 
 def copy_seed(dst):
@@ -83,11 +58,7 @@ def copy_seed(dst):
     for sub in ("db", "storage"):
         # cp -c: APFS clone, instant and space-free
         subprocess.run(["cp", "-cR", os.path.join(SEED, sub), os.path.join(dst, sub)], check=True)
-    # Web Push and webhook deliveries to the seed's real endpoints go to a closed port instead.
-    db = sqlite3.connect(os.path.join(dst, "db", "production.sqlite3"))
-    db.execute("UPDATE push_subscriptions SET endpoint = 'https://127.0.0.1:9/push/' || id")
-    db.execute("UPDATE webhooks SET url = 'http://127.0.0.1:9/hook/' || id")
-    db.commit(); db.close()
+    neuter_deliveries(os.path.join(dst, "db", "production.sqlite3"))
 
 
 def up():
@@ -139,42 +110,8 @@ def run_rep(app, rep, out, labels):
     idle = cgroup_mb("memory.current")
     log(f"{app} rep {rep}: cold start {cold}ms, idle {idle}MB")
 
-    L = labels.__getitem__
-    room, write_room, before, avatar = L("rooms.watercooler"), L("rooms.hq"), L("messages.busy_060"), L("avatar_tokens.jason")
-    cookie = lg("login", "--base", BASE, "--email", L("emails.david"), "--password", L("passwords.all"))["cookie"]
-    scrape = lg("scrape", "--base", BASE, "--cookie", cookie, "--room", room)
-    csrf, streams, css = scrape["csrf"] or "", ",".join(scrape["streams"]), scrape["css"]
-
-    routes = [("room_show", f"/rooms/{room}"), ("messages_page", f"/rooms/{room}/messages?before={before}"),
-              ("sidebar", "/users/me/sidebar"), ("search", "/searches?q=coffee"), ("avatar", f"/users/{avatar}/avatar"),
-              ("static_css", css), ("up", "/up"), ("post_message", None)]
-    http = []
-    for name, path in routes if "http" in SUITES else []:
-        args = ["--post-room", write_room, "--csrf", csrf] if path is None else ["--path", path]
-        lg("http", "--base", BASE, "--cookie", cookie, *args, "--conc", 4, "--duration", 2)  # warm up
-        for c in HTTP_CONCS:
-            r = lg("http", "--base", BASE, "--cookie", cookie, *args, "--conc", c, "--duration", HTTP_SECS)
-            r["route"] = name
-            http.append(r)
-            log(f"{app} rep {rep}: {name} c={c} {r['rps']} rps p50 {r['latency'].get('p50_ms')} "
-                f"p99 {r['latency'].get('p99_ms')} {r['statuses']} err {r['errors']}")
-
-    cable = []
-    for n in CABLE_CLIENTS if "cable" in SUITES else []:
-        with open(os.path.join(out, f".{app}-{rep}-cable{n}.stderr"), "w") as err:
-            r = lg("cable", "--base", BASE, "--cookie", cookie, "--room", room, "--csrf", csrf, "--streams", streams,
-                   "--clients", n, "--tput-secs", CABLE_TPUT_SECS, "--posters", CABLE_POSTERS, stderr=err)
-        cable.append(r)
-        lat, tp = r["latency"]["all_clients"], r["throughput"]
-        log(f"{app} rep {rep}: cable {n} clients ready {r['ready']} lat p50 {lat.get('p50_ms')} p99 {lat.get('p99_ms')} "
-            f"tput {tp['delivered_msgs_per_sec']} msg/s {tp['complete']}/{tp['posted']}")
-        time.sleep(2)
-
-    upload = {}
-    if "upload" in SUITES:
-        upload = lg("upload", "--base", BASE, "--cookie", cookie, "--room", write_room, "--csrf", csrf,
-                    "--file", os.path.join(BENCH, "black_hole.jpg"), "--reps", UPLOAD_REPS)
-        log(f"{app} rep {rep}: upload median {upload['median_total_ms']}ms")
+    http, cable, upload = run_suites(app, rep, out, labels, lg,
+                                   db_path=os.path.join(work, "db", "production.sqlite3"))
 
     peak = cgroup_mb("memory.peak")
     f = os.path.join(out, f"{app}-{rep}.json")
@@ -202,11 +139,9 @@ def main():
             raise SystemExit(f"unknown app {app} (one of {', '.join(IMAGES)})")
         if subprocess.run(["docker", "image", "inspect", IMAGES[app]], capture_output=True).returncode:
             raise SystemExit(f"{app}: image {IMAGES[app]} not found")
-    if not os.path.exists(os.path.join(SEED, "db", "production.sqlite3")):
-        raise SystemExit("no seed: run bench/make-seed")
+    labels = load_labels()
     out = a.out or os.path.join(BENCH, "results", datetime.now().strftime("%Y%m%d-%H%M%S"))
     os.makedirs(out, exist_ok=True)
-    labels = json.load(open(os.path.join(SEED, "labels.json")))
 
     # 1000 WebSocket clients need more than macOS's default 256 descriptors.
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -232,9 +167,7 @@ def main():
                 run_rep(app, rep, out, labels)
     finally:
         subprocess.run(["docker", "rm", "-f", CONTAINER], capture_output=True)
-    report = sh(os.path.join(BENCH, "report"), out)
-    open(os.path.join(out, "report.md"), "w").write(report + "\n")
-    print(report)
+    write_report(out)
 
 
 if __name__ == "__main__":

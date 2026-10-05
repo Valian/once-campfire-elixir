@@ -167,7 +167,8 @@ defmodule Campfire.Rooms do
           join: r in assoc(m, :room),
           where: m.user_id == ^user_id and m.involvement != ^:invisible,
           order_by: fragment("LOWER(?)", r.name),
-          preload: [room: r]
+          preload: [room: r],
+          select: [:id, :room_id, :unread_at, room: [:id, :name, :type, :updated_at]]
       )
 
     {directs, shared} = Enum.split_with(memberships, &(&1.room.type == :direct))
@@ -186,7 +187,7 @@ defmodule Campfire.Rooms do
                 select: mm.room_id
             ),
           order_by: m.id,
-          select: {m.room_id, u}
+          select: {m.room_id, struct(u, [:id, :name, :updated_at])}
       )
 
     members = Enum.group_by(direct_members, &elem(&1, 0), &elem(&1, 1))
@@ -217,7 +218,8 @@ defmodule Campfire.Rooms do
         from u in User,
           where: u.status == :active and u.id not in ^excluded,
           order_by: u.created_at,
-          limit: ^limit
+          limit: ^limit,
+          select: [:id, :name, :updated_at]
       )
     else
       []

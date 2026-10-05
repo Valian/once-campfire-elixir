@@ -14,7 +14,10 @@ defmodule CampfireWeb.Endpoint do
   # Health check: before statics, sessions and the router, no DB.
   plug :up
 
-  # Rails' digested assets (bin/extract-assets). Digests make them immutable.
+  # Rails' digested assets (bin/extract-assets). Digests make them immutable. Stylesheets and
+  # scripts come from memory; the rest (images, sounds) from disk.
+  plug CampfireWeb.AssetCache
+
   plug Plug.Static,
     at: "/assets",
     from: {:campfire, "priv/static/assets"},
@@ -33,6 +36,9 @@ defmodule CampfireWeb.Endpoint do
   end
 
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
+
+  # Gzip at level 3 instead of Bandit's fixed level 6 (see the module).
+  plug CampfireWeb.Gzip, level: 3
 
   # Uploads (message attachments, avatars): Rails sets no limit; 100 MB is plenty for chat.
   plug Plug.Parsers,
