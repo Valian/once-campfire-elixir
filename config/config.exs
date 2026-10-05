@@ -1,40 +1,44 @@
-# This file is responsible for configuring your application
-# and its dependencies with the aid of the Config module.
-#
-# This configuration file is loaded before any dependency and
-# is restricted to this project.
-
-# General application configuration
 import Config
 
 config :campfire,
   ecto_repos: [Campfire.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  app_version: "dev",
+  git_revision: "dev"
 
-# Configure the endpoint
 config :campfire, CampfireWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
-  render_errors: [
-    formats: [html: CampfireWeb.ErrorHTML, json: CampfireWeb.ErrorJSON],
-    layout: false
-  ],
-  pubsub_server: Campfire.PubSub,
-  live_view: [signing_salt: "WkCVpatF"]
+  render_errors: [formats: [html: CampfireWeb.ErrorHTML], layout: false],
+  pubsub_server: Campfire.PubSub
 
-# Configure LiveView
-config :phoenix_live_view,
-  # the attribute set on all root tags. Used for Phoenix.LiveView.ColocatedCSS.
-  root_tag_attribute: "phx-r"
+# SQLite: one writer connection (Campfire.Repo) serializes all writes; a pool of read-only
+# connections (Campfire.Repo.Replica) serves reads in parallel under WAL. Page cache is small
+# per connection; mmap lets readers share the OS page cache instead.
+sqlite_pragmas = [
+  busy_timeout: 5000,
+  synchronous: :normal,
+  foreign_keys: :on,
+  temp_store: :memory,
+  cache_size: -8000,
+  custom_pragmas: [mmap_size: 134_217_728]
+]
 
-# Configure Elixir's Logger
-config :logger, :default_formatter,
-  format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+config :campfire,
+       Campfire.Repo,
+       sqlite_pragmas ++
+         [
+           pool_size: 1,
+           journal_mode: :wal,
+           journal_size_limit: 67_108_864,
+           default_transaction_mode: :immediate
+         ]
 
-# Use Jason for JSON parsing in Phoenix
+config :campfire,
+       Campfire.Repo.Replica,
+       sqlite_pragmas ++ [mode: :readonly]
+
+config :logger, :default_formatter, format: "$time $metadata[$level] $message\n"
+
 config :phoenix, :json_library, Jason
 
-# Import environment specific config. This must remain at the bottom
-# of this file so it overrides the configuration defined above.
 import_config "#{config_env()}.exs"
