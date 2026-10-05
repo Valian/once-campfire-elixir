@@ -1,0 +1,318 @@
+<Layouts.app
+  flash={@flash}
+  current_user={@current_user}
+  turbo_frame={@turbo_frame}
+  title={@title}
+  body_class="sidebar"
+>
+  <:head>
+    <meta name="turbo-cache-control" content="no-preview" />
+    <meta name="current-room-id" content={@room.id} />
+  </:head>
+
+  <:nav>
+    <.account_logo :if={@account_logo?} />
+
+    <span class="btn btn--reversed btn--faux room--current">
+      <h1 class="room__contents txt-medium overflow-ellipsis">
+        <span :if={Campfire.Rooms.Room.direct?(@room)} class="for-screen-reader">Ping with</span>
+        {@title}
+      </h1>
+    </span>
+
+    <a
+      class="btn"
+      style={"view-transition-name: edit-room-#{@room.id}"}
+      data-room-id={@room.id}
+      href={"/rooms/#{Campfire.Rooms.Room.route_key(@room)}/#{@room.id}/edit"}
+    >
+      <.image src="menu-dots-horizontal.svg" size="20" aria-hidden="true" />
+      <span class="for-screen-reader">Settings for this {room_kind(@room)}</span>
+    </a>
+
+    <span>
+      <span
+        class="button_to_change_notifying"
+        data-controller="notifications"
+        data-notifications-subscriptions-url-value="/users/me/push_subscriptions"
+        data-notifications-attention-class="btn--pulsing"
+      >
+        <turbo-frame
+          data-controller="turbo-frame"
+          data-action="notifications:ready@window->turbo-frame#load"
+          data-turbo-frame-url-param={"/rooms/#{@room.id}/involvement"}
+          id={dom_id(@room, "involvement")}
+        >
+          <button
+            class="btn"
+            data-action="click->notifications#attemptToSubscribe"
+            data-notifications-target="bell"
+          >
+            <.image src="notification-bell-loading.svg" size="20" aria-hidden="true" />
+            <.image
+              src="notification-bell-alert.svg"
+              size="20"
+              aria-hidden="true"
+              hidden="hidden"
+            />
+            <span class="for-screen-reader">
+              Notification settings for this {room_kind(@room)}
+            </span>
+          </button>
+        </turbo-frame>
+
+        <dialog
+          data-notifications-target="notAllowedNotice"
+          class="dialog pad center center-block border-radius border shadow"
+          style="--inline-space: var(--block-space)"
+        >
+          <div class="flex flex-column txt-align-center">
+            <span class="btn btn--faux center txt-x-large">
+              <.image src="notification-bell-alert.svg" size="48" aria-hidden="true" />
+              <span class="for-screen-reader">Notifications alert</span>
+            </span>
+
+            <section>
+              <h1 class="txt-large margin-none">Notifications aren’t allowed</h1>
+              <div class="txt-align-start margin-block-start">
+                <NotificationsHelp.help platform={@platform} root_url={@base_url <> "/"} />
+              </div>
+            </section>
+
+            <form method="dialog" class="flex align-center gap center">
+              <button class="btn dialog__close" autofocus="true">
+                <span class="for-screen-reader">Close</span>
+                <.image src="remove.svg" size="20" aria-hidden="true" />
+              </button>
+            </form>
+          </div>
+        </dialog>
+      </span>
+    </span>
+  </:nav>
+
+  <div
+    id="message-area"
+    class="message-area"
+    contents
+    data-controller="messages presence drop-target"
+    data-action="turbo:before-stream-render@document->messages#beforeStreamRender keydown.up@document->messages#editMyLastMessage dragenter->drop-target#dragenter dragover->drop-target#dragover drop->drop-target#drop visibilitychange@document->presence#visibilityChanged"
+    data-messages-first-of-day-class="message--first-of-day"
+    data-messages-formatted-class="message--formatted"
+    data-messages-me-class="message--me"
+    data-messages-mentioned-class="message--mentioned"
+    data-messages-threaded-class="message--threaded"
+    data-messages-page-url-value={"#{@base_url}/rooms/#{@room.id}/messages"}
+  >
+    <script type="text/template" data-messages-target="template">
+      <div class="message message--me $messageClasses$"
+          id="message_$clientMessageId$"
+          data-format-message-target="message"
+          data-user-id="<%= @current_user.id %>"
+          data-message-timestamp="$messageTimestamp$"
+          data-messages-target="message">
+        <div class="message__day-separator"><time class="message__timestamp" datetime="$messageDatetime$" data-local-time-target="date"></time></div>
+
+        <figure class="avatar message__avatar">
+          <%= pending_avatar(@current_user) %>
+        </figure>
+
+        <div class="message__body">
+          <div class="message__body-content">
+            <div class="message__meta">
+              <h3 class="message__heading">
+                <span class="message__author"><strong><%= @current_user.name %></strong></span>
+                <span class="message__permalink"><time class="message__timestamp" datetime="$messageDatetime$" data-local-time-target="time"></time></span>
+              </h3>
+              <div class="message__actions">
+                <div class="position-relative">
+                  <span class="btn message__action-btn message__options-btn">
+                    <img class="colorize--black" aria-hidden="true" src="<%= CampfireWeb.Assets.path("menu-dots-horizontal.svg") %>">
+                    <span class="for-screen-reader">Message options</span>
+                  </span>
+                </div class="position-relative">
+              </div>
+            </div>
+            $body$
+          </div>
+        </div>
+      </div>
+    </script>
+
+    <div
+      id={dom_id(@room, "messages")}
+      class="messages"
+      data-controller="maintain-scroll refresh-room"
+      data-action="turbo:before-stream-render@document->maintain-scroll#beforeStreamRender visibilitychange@document->refresh-room#visibilityChanged online@window->refresh-room#online"
+      data-messages-target="messages"
+      data-refresh-room-loaded-at-value={epoch_ms(@room.updated_at)}
+      data-refresh-room-url-value={"#{@base_url}/rooms/#{@room.id}/refresh"}
+    >
+      <.invitation
+        :if={@invitation}
+        account={@account}
+        base_url={@base_url}
+        current_user={@current_user}
+      />
+      {{:safe, @messages}}
+    </div>
+
+    <turbo-cable-stream-source
+      channel="RoomMessagesChannel"
+      signed-stream-name={
+        Campfire.Signing.signed_stream_name(CampfireWeb.Cable.room_messages_stream(@room))
+      }
+    >
+    </turbo-cable-stream-source>
+
+    <button
+      class="message-area__return-to-latest btn"
+      data-action="messages#returnToLatest"
+      data-messages-target="latest"
+      hidden="hidden"
+    >
+      <.image src="arrow-down.svg" aria-hidden="true" size="20" /><span class="for-screen-reader">Jump to newest message</span>
+    </button>
+  </div>
+
+  <:footer>
+    <div
+      class="composer flex align-end gap position-relative"
+      data-controller="typing-notifications"
+      data-typing-notifications-active-class="typing-indicator--active"
+    >
+      <a
+        class="btn flex-item-no-shrink margin-block-end composer__context-btn"
+        style="view-transition-name: input-switcher"
+        href="/searches"
+      >
+        <.image src="search.svg" size="20" aria-hidden="true" />
+        <span class="for-screen-reader">Search</span>
+      </a>
+
+      <turbo-frame id="composer-frame">
+        <form
+          id="composer"
+          class="margin-block flex-item-grow contain"
+          data-controller="composer drop-target"
+          data-action="dragenter->drop-target#dragenter dragover->drop-target#dragover drop->drop-target#drop drop-target:drop@window->composer#dropFiles lexxy:file-accept->composer#preventAttachment refresh-room:online@window->composer#online typing-notifications#stop paste->composer#pasteFiles turbo:submit-end->composer#submitEnd refresh-room:offline@window->composer#offline"
+          data-composer-messages-outlet="#message-area"
+          data-composer-toolbar-class="composer--rich-text"
+          data-composer-room-id-value={@room.id}
+          action={"/rooms/#{@room.id}/messages"}
+          accept-charset="UTF-8"
+          method="post"
+        >
+          <.csrf_input />
+          <fieldset data-composer-target="fields" contents>
+            <div class="flex flex-column">
+              <div
+                class="composer__filelist flex flex--align-center gap flex-wrap"
+                data-composer-target="fileList"
+              >
+              </div>
+
+              <div
+                class="flex composer__input input input--actor fill-white min-width"
+                style="--input-border-radius: 1.3rem"
+              >
+                <div class="flex align-end gap full-width">
+                  <.image
+                    src="messages-outlined.svg"
+                    size="22"
+                    aria-hidden="true"
+                    class="composer__input-hint colorize--black"
+                    style="view-transition-name: input-btn;"
+                  />
+
+                  <div class="flex flex-column flex-item-grow min-width gap">
+                    <lexxy-editor
+                      rows="1"
+                      class="input lexxy-content"
+                      style="order: -1"
+                      aria-multiline="true"
+                      aria-label="Write a message"
+                      permitted-attachment-types="application/vnd.campfire.mention application/vnd.actiontext.opengraph-embed"
+                      data-controller="unfurl"
+                      data-action="lexxy:change->typing-notifications#start keydown->composer#submitByKeyboard:capture lexxy:change->composer#saveDraft lexxy:insert-link->unfurl#unfurl"
+                      data-composer-target="text"
+                      data-direct-upload-url={"#{@base_url}/rails/active_storage/direct_uploads"}
+                      data-blob-url-template={"#{@base_url}/rails/active_storage/blobs/redirect/:signed_id/:filename"}
+                      id="message_body"
+                      input="message_body_trix_input_message"
+                      name="message[body]"
+                    >
+                      <lexxy-prompt
+                        trigger="@"
+                        name="mention"
+                        src={"/autocompletable/users?room_id=#{@room.id}"}
+                        remote-filtering="true"
+                        empty-results="No matches"
+                      >
+                      </lexxy-prompt>
+                    </lexxy-editor>
+                  </div>
+
+                  <label class="btn btn--borderless txt-small flex-item-no-shrink composer__attachment-btn input--file">
+                    <.image
+                      src="attachment.svg"
+                      size="22"
+                      class="colorize--black"
+                      aria-hidden="true"
+                    />
+                    <input type="file" data-action="composer#filePicked" multiple />
+                    <span class="for-screen-reader">Attach a file</span>
+                  </label>
+
+                  <button
+                    class="btn btn--borderless txt-small flex-item-no-shrink composer__rich-text-btn"
+                    type="button"
+                    data-action="composer#toggleToolbar"
+                  >
+                    <.image
+                      src="text-options.svg"
+                      size="20"
+                      class="colorize--black"
+                      aria-hidden="true"
+                    />
+                    <span class="for-screen-reader">Rich text</span>
+                  </button>
+
+                  <button
+                    name="send"
+                    type="submit"
+                    data-action="composer#submit"
+                    class="btn btn--reversed flex-item-no-shrink txt-small"
+                  >
+                    <.image src="arrow-up.svg" size="20" aria-hidden="true" />
+                    <span class="for-screen-reader">Send Message</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
+          <div
+            class="typing-indicator gap txt-small align-center flex-inline"
+            data-typing-notifications-target="indicator"
+          >
+            <div
+              class="typing-indicator__author spinner"
+              data-typing-notifications-target="author"
+            >
+            </div>
+          </div>
+
+          <input
+            data-composer-target="clientid"
+            type="hidden"
+            name="message[client_message_id]"
+            id="message_client_message_id"
+          />
+        </form>
+      </turbo-frame>
+    </div>
+  </:footer>
+
+  <:sidebar><.sidebar_frame src="/users/me/sidebar" /></:sidebar>
+</Layouts.app>

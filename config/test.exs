@@ -27,3 +27,6 @@ config :phoenix, :plug_init_mode, :runtime
 
 # bcrypt hashes in the seed are cost 12; new ones in tests needn't be.
 config :bcrypt_elixir, :log_rounds, 4
+
+# Copy of bench/seed/storage, made by the `test` alias.
+config :campfire, :storage_root, Path.expand("../tmp/test_storage", __DIR__)

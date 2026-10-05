@@ -13,6 +13,7 @@ defmodule Campfire.Application do
         CampfireWeb.Cable.Pinger,
         Campfire.Accounts.SessionCache,
         CampfireWeb.RateLimiter,
+        CampfireWeb.MessageRenderer,
         CampfireWeb.Endpoint
       ]
       |> Enum.reject(&is_nil/1)

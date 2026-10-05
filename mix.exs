@@ -39,7 +39,8 @@ defmodule Campfire.MixProject do
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       # HEEx function components live here; we don't use LiveView itself.
       {:phoenix_live_view, "~> 1.2.0"},
-      {:lazy_html, ">= 0.1.0", only: :test},
+      {:lazy_html, "~> 0.1.13"},
+      {:vix, "~> 0.36"},
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
       {:bcrypt_elixir, "~> 3.3"}
@@ -69,5 +70,9 @@ defmodule Campfire.MixProject do
     end
 
     File.rm("tmp/test.sqlite3-shm")
+
+    # Active Storage files (config/test.exs points :storage_root here); tests may add to it.
+    File.rm_rf!("tmp/test_storage")
+    File.cp_r!(Path.join(System.get_env("SEED_DIR", "bench/seed"), "storage"), "tmp/test_storage")
   end
 end
