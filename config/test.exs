@@ -22,6 +22,9 @@ config :campfire, CampfireWeb.Endpoint,
 
 config :campfire, :login_rate_limit, 1000
 
+# A copy of bench/seed/storage (see the `test` alias): tests may write files.
+config :campfire, :storage_root, Path.expand("../tmp/test-storage", __DIR__)
+
 config :logger, level: :warning
 config :phoenix, :plug_init_mode, :runtime
 

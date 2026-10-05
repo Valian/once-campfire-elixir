@@ -42,7 +42,9 @@ defmodule Campfire.MixProject do
       {:lazy_html, ">= 0.1.0", only: :test},
       {:jason, "~> 1.2"},
       {:bandit, "~> 1.5"},
-      {:bcrypt_elixir, "~> 3.3"}
+      {:bcrypt_elixir, "~> 3.3"},
+      # libvips (precompiled): avatar variants.
+      {:vix, "~> 0.42"}
     ]
   end
 
@@ -69,5 +71,9 @@ defmodule Campfire.MixProject do
     end
 
     File.rm("tmp/test.sqlite3-shm")
+
+    File.rm_rf!("tmp/test-storage")
+    storage = Path.join(System.get_env("SEED_DIR", "bench/seed"), "storage")
+    if File.dir?(storage), do: File.cp_r!(storage, "tmp/test-storage")
   end
 end
