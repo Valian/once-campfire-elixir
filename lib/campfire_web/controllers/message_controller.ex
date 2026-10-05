@@ -6,6 +6,7 @@ defmodule CampfireWeb.MessageController do
   alias Campfire.Messages
   alias Campfire.Messages.Message
   alias Campfire.Rooms
+  alias Campfire.Rooms.Room
   alias CampfireWeb.{MessageBroadcasts, MessageRenderer, RoomHTML, TurboStream}
 
   plug :put_room when action != :create
@@ -19,11 +20,11 @@ defmodule CampfireWeb.MessageController do
     page =
       cond do
         id = presence(params["before"]) ->
-          with %Message{} = m <- Messages.get_in_room(room.id, id),
+          with %Message{} = m <- Messages.pagination_anchor(room.id, id),
                do: Messages.page_before(room, m)
 
         id = presence(params["after"]) ->
-          with %Message{} = m <- Messages.get_in_room(room.id, id),
+          with %Message{} = m <- Messages.pagination_anchor(room.id, id),
                do: Messages.page_after(room, m)
 
         true ->
@@ -54,7 +55,7 @@ defmodule CampfireWeb.MessageController do
   def create(conn, %{"room_id" => room_id} = params) do
     user = conn.assigns.current_user
 
-    with %{room: room} <- Rooms.get_membership(user.id, room_id),
+    with %Room{} = room <- Rooms.get_room_for_user(user.id, room_id),
          {:ok, message} <- Messages.create_message(room, user, params["message"] || %{}) do
       MessageBroadcasts.created(conn, message, room)
 
@@ -109,9 +110,9 @@ defmodule CampfireWeb.MessageController do
 
   # RoomScoped: the user's membership of the room, else 404.
   defp put_room(conn, _) do
-    case Rooms.get_membership(conn.assigns.current_user.id, conn.params["room_id"]) do
-      %{room: room} -> assign(conn, :room, room)
+    case Rooms.get_room_for_user(conn.assigns.current_user.id, conn.params["room_id"]) do
       nil -> conn |> send_resp(404, "") |> halt()
+      room -> assign(conn, :room, room)
     end
   end
 

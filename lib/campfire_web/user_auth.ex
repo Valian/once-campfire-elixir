@@ -49,6 +49,7 @@ defmodule CampfireWeb.UserAuth do
 
       nil ->
         conn
+        |> fetch_session()
         |> maybe_store_return_to()
         |> redirect(to: ~p"/session/new")
         |> halt()

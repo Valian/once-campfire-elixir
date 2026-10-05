@@ -61,21 +61,42 @@ defmodule Campfire.Messages do
       from(m in query, order_by: [asc: m.created_at, asc: m.id], limit: @page_size) |> fetch(room)
 
   defp fetch(query, room) do
-    from(m in query, left_join: u in assoc(m, :creator), preload: [creator: u])
+    from(m in query,
+      left_join: u in assoc(m, :creator),
+      preload: [creator: u],
+      select: [
+        :id,
+        :client_message_id,
+        :room_id,
+        :creator_id,
+        :created_at,
+        :updated_at,
+        creator: [:id, :name, :bio, :updated_at]
+      ]
+    )
     |> Replica.all()
     |> Enum.map(&%{&1 | room: room})
   end
 
   @doc "Sets `room` and loads `creator` on messages (for rendering single messages)."
   def with_creator(messages, %Room{} = room) do
-    messages |> Replica.preload(:creator) |> Enum.map(&%{&1 | room: room})
+    messages
+    |> Replica.preload(creator: presentation_users())
+    |> Enum.map(&%{&1 | room: room})
   end
 
   @doc """
   Loads `creator` and `room`, which `CampfireWeb.MessageRenderer.render/2` needs, on messages
   from any rooms (search results).
   """
-  def for_rendering(messages), do: Replica.preload(messages, [:creator, :room])
+  def for_rendering(messages) do
+    Replica.preload(messages,
+      creator: presentation_users(),
+      room: from(r in Room, select: [:id, :name, :type])
+    )
+  end
+
+  defp presentation_users, do: from(u in User, select: [:id, :name, :bio, :updated_at])
 
   @doc "Whether the room has more than a page of messages (Rails `paged?`)."
   def paged?(room_id),
@@ -84,6 +105,13 @@ defmodule Campfire.Messages do
   def get_in_room(room_id, id) do
     if id = Campfire.Id.parse(id) do
       Replica.one(from m in in_room(room_id), where: m.id == ^id)
+    end
+  end
+
+  @doc "A pagination cursor in this room; only its id and creation time are needed."
+  def pagination_anchor(room_id, id) do
+    if id = Campfire.Id.parse(id) do
+      Replica.one(from m in in_room(room_id), where: m.id == ^id, select: [:id, :created_at])
     end
   end
 
@@ -109,15 +137,19 @@ defmodule Campfire.Messages do
   def preload_presentation(messages, room) do
     messages =
       Replica.preload(messages,
-        creator: [],
-        rich_text: [],
+        creator: presentation_users(),
+        rich_text: from(r in RichText, select: [:id, :record_id, :body]),
         attachment: [blob: []],
-        boosts: {from(b in Boost, order_by: [asc: b.created_at, asc: b.id]), booster: []}
+        boosts:
+          {from(b in Boost,
+             order_by: [asc: b.created_at, asc: b.id],
+             select: [:id, :message_id, :booster_id, :content, :created_at]
+           ), booster: presentation_users()}
       )
 
     case room do
       %Room{} -> Enum.map(messages, &%{&1 | room: room})
-      nil -> Replica.preload(messages, :room)
+      nil -> Replica.preload(messages, room: from(r in Room, select: [:id, :name, :type]))
     end
   end
 
@@ -130,8 +162,12 @@ defmodule Campfire.Messages do
   @doc "Users mentioned across `trees`, by id, in one query."
   def mentioned_users(trees) do
     case trees |> Enum.flat_map(&Campfire.RichText.mentioned_user_ids/1) |> Enum.uniq() do
-      [] -> %{}
-      ids -> Replica.all(from u in User, where: u.id in ^ids) |> Map.new(&{&1.id, &1})
+      [] ->
+        %{}
+
+      ids ->
+        Replica.all(from u in presentation_users(), where: u.id in ^ids)
+        |> Map.new(&{&1.id, &1})
     end
   end
 

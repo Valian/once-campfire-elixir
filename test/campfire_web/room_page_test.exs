@@ -95,9 +95,28 @@ defmodule CampfireWeb.RoomPageTest do
       assert conn.status in [200, 302], room
     end
 
+    CampfireWeb.MessageRenderer.clear()
     html = conn |> recycle() |> get(~p"/rooms/#{label("rooms.designers")}") |> html_response(200)
     assert html =~ "/rails/active_storage/representations/redirect/"
     assert html =~ ~s(class="message__attachment")
+    doc = document(html)
+    assert Enum.count(LazyHTML.query(doc, ".message--failed")) == 0
+    assert Enum.count(LazyHTML.query(doc, ".message .mention")) > 0
+    assert Enum.count(LazyHTML.query(doc, ".message .boost")) > 0
+
+    # A second request serves cached fragments with the same complete presentation.
+    cached =
+      conn
+      |> recycle()
+      |> get(~p"/rooms/#{label("rooms.designers")}")
+      |> html_response(200)
+      |> document()
+
+    assert LazyHTML.attribute(LazyHTML.query(cached, ".message"), "data-message-id") ==
+             LazyHTML.attribute(LazyHTML.query(doc, ".message"), "data-message-id")
+
+    assert LazyHTML.text(LazyHTML.query(cached, ".message")) ==
+             LazyHTML.text(LazyHTML.query(doc, ".message"))
   end
 
   test "messages page: before/after, 204 when empty, 404 for a foreign id", %{conn: conn} do

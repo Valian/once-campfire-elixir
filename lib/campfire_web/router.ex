@@ -35,6 +35,14 @@ defmodule CampfireWeb.Router do
     plug :require_authenticated_user
   end
 
+  # Avatar GETs authenticate through session_token, but don't render pages or use flash/CSRF.
+  # The browser session is fetched only when a signed-out visitor needs a return-to URL.
+  pipeline :avatar do
+    plug :put_secure_browser_headers
+    plug :put_version_headers
+    plug :fetch_current_user
+  end
+
   scope "/", CampfireWeb do
     pipe_through :browser
 
@@ -71,6 +79,12 @@ defmodule CampfireWeb.Router do
           ActiveStorageController,
           :representation
     end
+  end
+
+  scope "/", CampfireWeb do
+    pipe_through [:avatar, :authenticated]
+
+    get "/users/:avatar_token/avatar", AvatarController, :show
   end
 
   scope "/", CampfireWeb do
@@ -125,7 +139,6 @@ defmodule CampfireWeb.Router do
     post "/users/:user_id/push_subscriptions", PushSubscriptionController, :create
     delete "/users/:user_id/push_subscriptions/:id", PushSubscriptionController, :delete
 
-    get "/users/:avatar_token/avatar", AvatarController, :show
     delete "/users/:user_id/avatar", AvatarController, :delete
     post "/users/:user_id/ban", UserController, :ban
     delete "/users/:user_id/ban", UserController, :unban
