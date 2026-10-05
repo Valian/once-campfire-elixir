@@ -13,7 +13,7 @@ runs = {}
 for f in sorted(glob.glob(os.path.join(out, "*-*.json"))):
     r = json.load(open(f))
     runs.setdefault(r["app"], []).append(r)
-order = ["reference", "elixir-official", "ours"]
+order = ["reference", "elixir-official", "go", "ours"]
 apps = sorted(runs, key=lambda a: order.index(a) if a in order else 99)
 
 

@@ -69,15 +69,20 @@ loopback. One app at a time, fresh seed copy per run, cold start until `/up`, me
 of the app's processes from `/proc` (no page cache). Full docs in the script's header.
 
 ```sh
-bench/setup-native                     # once: loadgen, Rails @ pinned commit, official port, ours (mise toolchains)
-bench/run-native --apps reference,elixir-official,ours --reps 2
-HTTP_SECS=3 HTTP_CONCS=16 CABLE_CLIENTS=100 bench/run-native --apps reference,elixir-official,ours --reps 1   # smoke
+bench/setup-native                     # once: loadgen, Rails, official Elixir, Go, ours (mise toolchains)
+bench/setup-native go                  # add just Go to an existing native setup
+HTTP_SECS=5 bench/run-native --apps reference,elixir-official,go,ours --reps 2
+HTTP_SECS=3 HTTP_CONCS=16 CABLE_CLIENTS=100 bench/run-native --apps reference,elixir-official,go,ours --reps 1   # smoke
 OURS_REL=/path/to/other/rel SUITES=http bench/run-native --apps ours --reps 1                                # A/B a build
 ```
 
 - `reference`: Thruster + Puma (`WEB_CONCURRENCY = ceil(0.666 × cpus)`, 5 threads) + resque-pool
   (its `config/resque-pool.yml`: `ceil(0.5 × cpus)` workers), jemalloc, as its Procfile minus Redis.
 - `elixir-official`: its release behind Thruster, as its `bin/container-start`.
+- `go`: [basecamp/once-campfire-go](https://github.com/basecamp/once-campfire-go), pinned by
+  `GO_COMMIT` in `setup-native`, built with CGO and SQLite FTS5. Its production public front end
+  serves the benchmark port, including gzip and public asset caching; the internal application
+  listener uses the next port. `GOMAXPROCS` equals the pinned CPU count. Go does not use Redis.
 - `ours`: `_build/prod/rel/campfire` serving the port itself.
 - Both Elixir apps get `ELIXIR_ERL_OPTIONS="+S N:N +SDcpu N:N"` (N = pinned CPUs);
   `env.txt` records what each VM actually reports, and the observed process tree per run.
@@ -85,3 +90,12 @@ OURS_REL=/path/to/other/rel SUITES=http bench/run-native --apps ours --reps 1   
   run; its memory is reported separately.
 - Before each run the harness waits (up to `LOAD_WAIT_SECS`) for the 1-minute load average to
   drop below `LOAD_MAX` and records it.
+- Native checkout paths can be overridden with `REFERENCE_DIR`, `ELIXIR_OFFICIAL_DIR` and `GO_DIR`;
+  `GO_BIN` overrides the Go executable (`GO_DIR/.native/bin/campfire` by default).
+- HTTP requests use `HTTP_GZIP=1` by default; set `HTTP_GZIP=0` for identity encoding across every
+  app. Go's own saved application benchmarks use its internal listener and identity encoding,
+  so compare those separately from this harness's production front-end measurements.
+- Before HTTP timing, the harness compares message/room IDs and avatar bytes with the first
+  app's responses. After posting, it checks that every successful request added both a message
+  and an FTS entry. These records live under the result directory's `validation/`; failed HTTP
+  samples stop the run rather than contributing misleading throughput.

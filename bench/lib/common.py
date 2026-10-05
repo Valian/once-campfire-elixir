@@ -1,7 +1,7 @@
 """Shared by bench/run (Docker, macOS) and bench/run-native (bare processes, Linux): the knobs, the
 process-model environment, the seed preparation and the three suites driven through bench/loadgen.
 """
-import json, math, os, sqlite3, sys, time
+import gzip, hashlib, json, math, os, re, sqlite3, sys, time, urllib.request
 from datetime import datetime
 
 BENCH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -11,6 +11,9 @@ E = os.environ.get
 
 HTTP_SECS = E("HTTP_SECS", "8")
 HTTP_CONCS = E("HTTP_CONCS", "1 16 64").split()
+HTTP_GZIP = E("HTTP_GZIP", "1")
+if HTTP_GZIP not in ("0", "1"):
+    raise SystemExit("HTTP_GZIP must be 0 (identity) or 1 (gzip)")
 CABLE_CLIENTS = E("CABLE_CLIENTS", "100 500 1000").split()
 CABLE_TPUT_SECS = E("CABLE_TPUT_SECS", "15")
 CABLE_POSTERS = E("CABLE_POSTERS", "4")
@@ -50,7 +53,56 @@ def neuter_deliveries(db_path):
     db.commit(); db.close()
 
 
-def run_suites(app, rep, out, labels, lg, base=BASE):
+def response_contracts(app, rep, out, routes, cookie, base):
+    """Check full read responses against the first app; HTML bytes may differ across ports."""
+    path = os.path.join(out, "validation")
+    os.makedirs(path, exist_ok=True)
+    baseline_path = os.path.join(path, "read-baseline.json")
+    baseline = json.load(open(baseline_path)) if os.path.exists(baseline_path) else {}
+    responses = {}
+    for name, route in routes:
+        if route is None:
+            continue
+        request = urllib.request.Request(base + route, headers={"Cookie": cookie,
+                                                               "Accept-Encoding": "gzip" if HTTP_GZIP == "1" else "identity"})
+        with urllib.request.urlopen(request, timeout=30) as response:
+            if response.status != 200:
+                raise RuntimeError(f"{app}: {name} returned {response.status}, expected 200")
+            body = response.read()
+            encoding = response.headers.get("Content-Encoding", "identity")
+        wire_bytes = len(body)
+        if encoding == "gzip":
+            body = gzip.decompress(body)
+        elif encoding != "identity":
+            raise RuntimeError(f"{app}: {name} returned unexpected encoding {encoding}")
+        if name in ("room_show", "messages_page", "search", "sidebar"):
+            attribute = b"data-room-id" if name == "sidebar" else b"data-message-id"
+            contract = sorted(set(value.decode() for value in re.findall(attribute + rb'="([0-9]+)"', body)))
+            if not contract:
+                raise RuntimeError(f"{app}: {name} has no {attribute.decode()} values")
+        elif name == "avatar":
+            contract = hashlib.sha256(body).hexdigest()
+        else:
+            if not body:
+                raise RuntimeError(f"{app}: {name} has an empty response")
+            contract = None  # CSS asset and health-page bytes can legitimately differ.
+        if name in baseline and baseline[name] != contract:
+            raise RuntimeError(f"{app}: {name} response differs from the first app's content contract")
+        baseline[name] = contract
+        responses[name] = {"bytes": len(body), "wire_bytes": wire_bytes, "encoding": encoding,
+                           "sha256": hashlib.sha256(body).hexdigest(), "contract": contract}
+    json.dump(baseline, open(baseline_path, "w"), indent=2)
+    json.dump({"app": app, "rep": rep, "responses": responses},
+              open(os.path.join(path, f"{app}-{rep}.json"), "w"), indent=2)
+
+
+def write_counts(db_path, room):
+    with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as db:
+        return (db.execute("SELECT count(*) FROM messages WHERE room_id=?", (room,)).fetchone()[0],
+                db.execute("SELECT count(*) FROM message_search_index WHERE body MATCH 'bench write'").fetchone()[0])
+
+
+def run_suites(app, rep, out, labels, lg, base=BASE, db_path=None):
     """Log in, scrape the busy room, then the HTTP, Action Cable fan-out and upload suites.
     `lg(*args, stderr=None)` runs bench/loadgen and returns its JSON. Returns (http, cable, upload)."""
     L = labels.__getitem__
@@ -62,16 +114,32 @@ def run_suites(app, rep, out, labels, lg, base=BASE):
     routes = [("room_show", f"/rooms/{room}"), ("messages_page", f"/rooms/{room}/messages?before={before}"),
               ("sidebar", "/users/me/sidebar"), ("search", "/searches?q=coffee"), ("avatar", f"/users/{avatar}/avatar"),
               ("static_css", css), ("up", "/up"), ("post_message", None)]
+    if "http" in SUITES:
+        response_contracts(app, rep, out, routes, cookie, base)
     http = []
     for name, path in routes if "http" in SUITES else []:
         args = ["--post-room", write_room, "--csrf", csrf] if path is None else ["--path", path]
-        lg("http", "--base", base, "--cookie", cookie, *args, "--conc", 4, "--duration", 2)  # warm up
+        before_writes = write_counts(db_path, write_room) if path is None and db_path else None
+        warmup = lg("http", "--base", base, "--cookie", cookie, *args, "--gzip", HTTP_GZIP, "--conc", 4, "--duration", 2)
+        writes = warmup["ok"]
+        if warmup["errors"] or set(warmup["statuses"]) != {"200"}:
+            raise RuntimeError(f"{app}: {name} warmup failed: {warmup}")
         for c in HTTP_CONCS:
-            r = lg("http", "--base", base, "--cookie", cookie, *args, "--conc", c, "--duration", HTTP_SECS)
+            r = lg("http", "--base", base, "--cookie", cookie, *args, "--gzip", HTTP_GZIP, "--conc", c, "--duration", HTTP_SECS)
+            if r["errors"] or set(r["statuses"]) != {"200"}:
+                raise RuntimeError(f"{app}: {name} measurement failed: {r}")
+            writes += r["ok"]
             r["route"] = name
             http.append(r)
             log(f"{app} rep {rep}: {name} c={c} {r['rps']} rps p50 {r['latency'].get('p50_ms')} "
                 f"p99 {r['latency'].get('p99_ms')} {r['statuses']} err {r['errors']}")
+        if before_writes is not None:
+            after_writes = write_counts(db_path, write_room)
+            persisted, indexed = (after - before for before, after in zip(before_writes, after_writes))
+            if persisted != writes or indexed != writes:
+                raise RuntimeError(f"{app}: expected {writes} writes, persisted {persisted}, indexed {indexed}")
+            json.dump({"expected": writes, "persisted": persisted, "indexed": indexed},
+                      open(os.path.join(out, "validation", f"{app}-{rep}-writes.json"), "w"), indent=2)
 
     cable = []
     for n in CABLE_CLIENTS if "cable" in SUITES else []:

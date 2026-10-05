@@ -110,7 +110,8 @@ def run_rep(app, rep, out, labels):
     idle = cgroup_mb("memory.current")
     log(f"{app} rep {rep}: cold start {cold}ms, idle {idle}MB")
 
-    http, cable, upload = run_suites(app, rep, out, labels, lg)
+    http, cable, upload = run_suites(app, rep, out, labels, lg,
+                                   db_path=os.path.join(work, "db", "production.sqlite3"))
 
     peak = cgroup_mb("memory.peak")
     f = os.path.join(out, f"{app}-{rep}.json")

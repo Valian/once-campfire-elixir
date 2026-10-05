@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Benchmark Campfire implementations side by side as bare processes on Linux (no Docker for the apps).
 
-  bench/setup-native                                        # once: build all three apps + bench/loadgen
-  bench/run-native [--apps reference,elixir-official,ours] [--reps 3] [--out DIR] [--user-agent UA]
+  bench/setup-native                                        # once: build all four apps + bench/loadgen
+  bench/run-native [--apps reference,elixir-official,go,ours] [--reps 3] [--out DIR] [--user-agent UA]
   bench/report DIR
 
 The Linux counterpart of bench/run, closer to once-campfire-rust's bench/run: same seed, same suites
@@ -20,6 +20,8 @@ Apps (see bench/README.md, "Native Linux"):
                    Rails.root/storage is a symlink to the run dir.
   elixir-official  basecamp/once-campfire-elixir's release at ELIXIR_OFFICIAL_DIR behind Thruster,
                    as its bin/container-start (helpers campfire-vips/campfire-html on PATH).
+  go               basecamp/once-campfire-go at GO_DIR; native binary at GO_BIN, with its public
+                   front end on PORT and application listener on PORT+1, GOMAXPROCS = pinned CPUs.
   ours             this repo's release (`_build/prod/rel/campfire`), serving PORT itself.
 Redis is NOT part of any app's process tree here: the reference and the official port both use the
 external one at REDIS_URL (a Docker container on the host), FLUSHALLed before every run; its memory
@@ -30,18 +32,19 @@ Pss and Rss from /proc/PID/smaps_rollup, in MB: `idle_pss_mb` after settling, `p
 maximum of the 250 ms samples over the whole run (no page cache, unlike the Docker cgroup numbers).
 
 Knobs (env): SERVER_CPUS=4-7 LOADGEN_CPUS=8-11 HARNESS_CPUS=0-3 (this script, the memory sampler)
-  HTTP_SECS=8 HTTP_CONCS="1 16 64" CABLE_CLIENTS="100 500 1000" CABLE_TPUT_SECS=15 CABLE_POSTERS=4
+  HTTP_SECS=8 HTTP_CONCS="1 16 64" HTTP_GZIP=1 CABLE_CLIENTS="100 500 1000" CABLE_TPUT_SECS=15 CABLE_POSTERS=4
   UPLOAD_REPS=5 PORT=4390 (and PORT+1) SUITES="http cable upload" SETTLE_SECS=10 LOAD_MAX=3
   LOAD_WAIT_SECS=300 REDIS_URL=redis://127.0.0.1:6379/0 EXTRA_ENV="K=V ..." (every app)
-  REFERENCE_DIR, ELIXIR_OFFICIAL_DIR (default bench/.cache/once-campfire{,-elixir}), OURS_REL (default
+  REFERENCE_DIR, ELIXIR_OFFICIAL_DIR, GO_DIR (default bench/.cache/once-campfire{,-elixir,-go}),
+  GO_BIN (default GO_DIR/.native/bin/campfire), OURS_REL (default
   _build/prod/rel/campfire, e.g. a `mix release --path` build of another commit for A/B), RUBY_VERSION
   (default: REFERENCE_DIR/.ruby-version, run through `mise exec ruby@...`), JEMALLOC=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
 """
-import argparse, glob, json, os, resource, shutil, signal, socket, subprocess, sys, threading, time, urllib.request
+import argparse, glob, hashlib, json, os, resource, shutil, signal, socket, subprocess, sys, threading, time, urllib.request
 from datetime import datetime
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
-from common import (BENCH, SEED, LOADGEN, E, HTTP_SECS, HTTP_CONCS, CABLE_CLIENTS, PORT, SUITES, SETTLE_SECS,
+from common import (BENCH, SEED, LOADGEN, E, HTTP_SECS, HTTP_CONCS, HTTP_GZIP, CABLE_CLIENTS, PORT, SUITES, SETTLE_SECS,
                     EXTRA_ENV, BASE, log, cpuset_size, app_env, neuter_deliveries, run_suites, load_labels, write_report)
 
 ROOT = os.path.dirname(BENCH)
@@ -54,6 +57,8 @@ LOAD_WAIT_SECS = int(E("LOAD_WAIT_SECS", "300"))
 REDIS_URL = E("REDIS_URL", "redis://127.0.0.1:6379/0")
 REFERENCE_DIR = os.path.abspath(E("REFERENCE_DIR", os.path.join(BENCH, ".cache", "once-campfire")))
 OFFICIAL_DIR = os.path.abspath(E("ELIXIR_OFFICIAL_DIR", os.path.join(BENCH, ".cache", "once-campfire-elixir")))
+GO_DIR = os.path.abspath(E("GO_DIR", os.path.join(BENCH, ".cache", "once-campfire-go")))
+GO_BIN = os.path.abspath(E("GO_BIN", os.path.join(GO_DIR, ".native", "bin", "campfire")))
 OURS_REL = os.path.abspath(E("OURS_REL", os.path.join(ROOT, "_build", "prod", "rel", "campfire")))
 OFFICIAL_REL = os.path.join(OFFICIAL_DIR, "_build", "prod", "rel", "campfire")
 OFFICIAL_BIN = os.path.join(OFFICIAL_DIR, ".native", "bin")   # campfire-vips, campfire-html (bench/setup-native)
@@ -61,7 +66,8 @@ JEMALLOC = E("JEMALLOC", "/usr/lib/x86_64-linux-gnu/libjemalloc.so.2")
 # Both Elixir apps: schedulers and dirty CPU schedulers explicitly = the pinned CPU count (dirty IO left
 # at its default). taskset stays the actual limit for every app; this only fixes the BEAM's sizing.
 ERL_OPTIONS = E("ELIXIR_ERL_OPTIONS", f"+S {NCPU}:{NCPU} +SDcpu {NCPU}:{NCPU}")
-APPS = ("reference", "elixir-official", "ours")
+APPS = ("reference", "elixir-official", "go", "ours")
+REDIS_APPS = ("reference", "elixir-official")
 UA = []
 
 
@@ -133,6 +139,8 @@ def session_pids(sid):
 
 
 def role(cmd):
+    if cmd == GO_BIN or cmd.startswith(GO_BIN + " "):
+        return "go"
     for needle, r in (("thrust", "thrust"), ("puma", "puma"), ("resque", "jobs"), ("beam.smp", "beam"),
                       ("campfire-vips", "helpers"), ("campfire-html", "helpers"), ("ffmpeg", "helpers")):
         if needle in cmd:
@@ -305,6 +313,13 @@ def launch(app, run):
                     "RELEASE_DISTRIBUTION": "none", "RELEASE_TMP": os.path.join(run, "tmp"),
                     "ELIXIR_ERL_OPTIONS": ERL_OPTIONS})
         return [thrust(), os.path.join(OFFICIAL_REL, "bin", "campfire"), "start"], env, run
+    if app == "go":
+        env.update(timeouts)
+        env.update({"GOMAXPROCS": str(NCPU), "CAMPFIRE_DATABASE_PATH": db,
+                    "CAMPFIRE_STORAGE_PATH": run, "CAMPFIRE_FILES_PATH": files,
+                    "HTTP_PORT": str(PORT), "TARGET_PORT": str(PORT + 1), "TARGET_BIND": "127.0.0.1",
+                    "THRUSTER_STORAGE_PATH": os.path.join(run, "thruster")})
+        return [GO_BIN, "server"], env, run
     # ours: the release serves HTTP_PORT itself (as the image's CMD; env as its Dockerfile).
     env.update({"HTTP_PORT": str(PORT), "DATABASE_PATH": db, "STORAGE_PATH": files,
                 "RELEASE_DISTRIBUTION": "none", "RELEASE_TMP": os.path.join(run, "tmp"),
@@ -326,7 +341,7 @@ def start_app(app, run, logf):
         if not port_free(p):
             raise SystemExit(f"port {p} is in use")
     copy_seed(run)
-    if app != "ours":
+    if app in REDIS_APPS:
         redis("FLUSHALL")
     argv, env, cwd = launch(app, run)
     os.sync()
@@ -363,7 +378,7 @@ def run_rep(app, rep, out, labels):
             time.sleep(SETTLE_SECS)
             idle, idle_roles = snapshot(proc.pid)
             model = process_model(proc.pid)
-            redis_idle = redis_rss_mb()
+            redis_idle = redis_rss_mb() if app in REDIS_APPS else None
             sampler = Sampler(proc.pid); sampler.start()
             observed = observed_model(model)
             with open(os.path.join(out, "env.txt"), "a") as e:
@@ -372,7 +387,8 @@ def run_rep(app, rep, out, labels):
             log(f"{app} rep {rep}: cold start {cold}ms, idle PSS {idle['pss_mb']:.0f}MB RSS {idle['rss_mb']:.0f}MB "
                 f"in {idle['procs']} processes" + "".join(f"; {p['role']}: {p['schedulers']} schedulers" for p in model if "schedulers" in p))
 
-            http, cable, upload = run_suites(app, rep, out, labels, lg)
+            http, cable, upload = run_suites(app, rep, out, labels, lg,
+                                           db_path=os.path.join(run, "db", "production.sqlite3"))
 
             sampler.stop.set(); sampler.join()
             peak = sampler.peak
@@ -380,8 +396,8 @@ def run_rep(app, rep, out, labels):
                       "peak_pss_mb": round(peak["pss_mb"], 1), "peak_rss_mb": round(peak["rss_mb"], 1),
                       "idle_roles_pss_mb": {r: round(v["pss_mb"], 1) for r, v in idle_roles.items()},
                       "peak_roles": sampler.roles,
-                      "redis_rss_mb_idle": redis_idle if app != "ours" else None,
-                      "redis_rss_mb_end": redis_rss_mb() if app != "ours" else None}
+                      "redis_rss_mb_idle": redis_idle,
+                      "redis_rss_mb_end": redis_rss_mb() if app in REDIS_APPS else None}
         finally:
             if sampler:
                 sampler.stop.set()
@@ -415,6 +431,7 @@ def siblings(cpus):
 def check_prereqs(apps):
     need = {"reference": [os.path.join(REFERENCE_DIR, "public", "assets")],
             "elixir-official": [os.path.join(OFFICIAL_REL, "bin", "campfire"), os.path.join(OFFICIAL_BIN, "campfire-vips")],
+            "go": [GO_BIN],
             "ours": [os.path.join(OURS_REL, "bin", "campfire")]}
     for app in apps:
         if app not in APPS:
@@ -422,7 +439,7 @@ def check_prereqs(apps):
         for p in need[app]:
             if not os.path.exists(p):
                 raise SystemExit(f"{app}: {p} missing: run bench/setup-native")
-        if app != "ours":
+        if app in REDIS_APPS:
             thrust()
             try:
                 redis("PING")
@@ -440,10 +457,10 @@ def write_env(out, apps):
              f"governor: {sh('sh', '-c', 'cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null; cat /sys/devices/system/cpu/cpufreq/boost /sys/devices/system/cpu/intel_pstate/no_turbo 2>/dev/null', check=False).replace(chr(10), ' ')}",
              f"server cpus: {SERVER_CPUS} (siblings {siblings(SERVER_CPUS)}; process model for {NCPU} cpus); "
              f"loadgen cpus: {LOADGEN_CPUS} (siblings {siblings(LOADGEN_CPUS)}); harness: {HARNESS_CPUS}",
-             f"suites: {SUITES} http secs {HTTP_SECS} concs {HTTP_CONCS} cable {CABLE_CLIENTS}",
+             f"suites: {SUITES} http secs {HTTP_SECS} concs {HTTP_CONCS} gzip {HTTP_GZIP} cable {CABLE_CLIENTS}",
              f"env: {' '.join(x for x in app_env(NCPU) if 'CONCURRENCY' in x or 'THREADS' in x)} {' '.join(EXTRA_ENV)}",
              f"loadgen: {git_rev(ROOT)} (bench/loadgen)"]
-    if any(a != "ours" for a in apps):
+    if any(a in REDIS_APPS for a in apps):
         info = redis_info("server")
         lines.append(f"redis (external, shared, FLUSHALL per run): {REDIS_URL} redis {info.get('redis_version')}")
         lines.append(f"thruster: {thrust()}")
@@ -451,6 +468,15 @@ def write_env(out, apps):
         env = {**os.environ, "PATH": ruby_bin() + ":" + os.environ["PATH"]}
         lines.append(f"reference: {REFERENCE_DIR} @ {git_rev(REFERENCE_DIR)}; {sh('ruby', '-v', env=env)}; "
                      f"jemalloc {JEMALLOC}; libvips {sh('pkg-config', '--modversion', 'vips', check=False)}")
+    if "go" in apps:
+        with open(GO_BIN, "rb") as binary:
+            digest = hashlib.file_digest(binary, "sha256").hexdigest()
+        lines.append(f"go: {GO_DIR} @ {git_rev(GO_DIR)}; binary {GO_BIN} sha256 {digest}; "
+                     f"GOMAXPROCS={NCPU}; public front end on {PORT}, application on {PORT + 1}; "
+                     f"LOG_REQUESTS={dict(kv.split('=', 1) for kv in app_env(NCPU)).get('LOG_REQUESTS', 'true')}; "
+                     f"libvips {sh('pkg-config', '--modversion', 'vips', check=False)}")
+        if os.path.exists(GO_BIN + ".build-info"):
+            lines.append("go build info:\n" + open(GO_BIN + ".build-info").read().strip())
     for app, rel, d in (("elixir-official", OFFICIAL_REL, OFFICIAL_DIR), ("ours", OURS_REL, ROOT)):
         if app in apps:
             erts = sorted(glob.glob(os.path.join(rel, "erts-*")))

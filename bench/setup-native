@@ -8,25 +8,31 @@
 #                         checkout (bin/export-assets copies the same files out of the Rails image),
 #                         MIX_ENV=prod EXQLITE_USE_SYSTEM=1 mix release  (erlang@ERLANG, elixir@ELIXIR)
 #   ours                  MIX_ENV=prod mix release in this checkout      (same toolchain)
+#   go                    once-campfire-go @ GO_COMMIT: pinned reference assets,
+#                         CGO_ENABLED=1 go build -tags sqlite_fts5        (go@<go.mod version>)
 #
-#   bench/setup-native [loadgen|reference|elixir-official|ours ...]     # default: all
+#   bench/setup-native [loadgen|reference|elixir-official|go|ours ...]  # default: all
 #
 # System packages (apt): build-essential pkg-config libssl-dev libyaml-dev libsqlite3-dev libvips-dev
 # libjemalloc2 ffmpeg. Redis is not built here: run-native uses REDIS_URL (e.g. a redis:7 container).
-# Env: REFERENCE_DIR, ELIXIR_OFFICIAL_DIR (default bench/.cache/once-campfire{,-elixir}), REF_COMMIT,
-#      ELIXIR_COMMIT, ERLANG (28.5), ELIXIR (1.19.5-otp-28)
+# Env: REFERENCE_DIR, ELIXIR_OFFICIAL_DIR, GO_DIR (default bench/.cache/once-campfire{,-elixir,-go}),
+#      REF_COMMIT, ELIXIR_COMMIT, GO_COMMIT, GO_VERSION (default from go.mod), GO_BIN,
+#      ERLANG (28.5), ELIXIR (1.19.5-otp-28)
 set -euo pipefail
 
 BENCH=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(dirname "$BENCH")
 REF_DIR=${REFERENCE_DIR:-$BENCH/.cache/once-campfire}
 OFF_DIR=${ELIXIR_OFFICIAL_DIR:-$BENCH/.cache/once-campfire-elixir}
+GO_DIR=${GO_DIR:-$BENCH/.cache/once-campfire-go}
+GO_BIN=${GO_BIN:-$GO_DIR/.native/bin/campfire}
 REF_COMMIT=${REF_COMMIT:-90b330024dec3e757c79b6a7e6568f93da8e3148}
 ELIXIR_COMMIT=${ELIXIR_COMMIT:-b6b82e50a653c4060136bb04e805eb78fd76ba10}
+GO_COMMIT=${GO_COMMIT:-8d2f7f24f56dac87dba0211b68b14d9e21e4b516}
 ERLANG=${ERLANG:-28.5}
 ELIXIR=${ELIXIR:-1.19.5-otp-28}
 BEAM=(mise exec "erlang@$ERLANG" "elixir@$ELIXIR" --)
-STEPS=${*:-loadgen reference elixir-official ours}
+STEPS=${*:-loadgen reference elixir-official go ours}
 
 log() { echo "[setup-native $(date +%T)] $*" >&2; }
 
@@ -85,6 +91,18 @@ for step in $STEPS; do
     "${BEAM[@]}" mix local.rebar --force --if-missing >/dev/null
     MIX_ENV=prod "${BEAM[@]}" mix deps.get --only prod
     MIX_ENV=prod "${BEAM[@]}" sh -c 'mix compile --warnings-as-errors && mix release --overwrite'
+    ;;
+  go)
+    log "go: $GO_DIR @ $GO_COMMIT"
+    checkout "$GO_DIR" https://github.com/basecamp/once-campfire-go.git "$GO_COMMIT"
+    cd "$GO_DIR"
+    git submodule update -q --init --recursive reference
+    python3 bin/build-assets
+    GO_VERSION=${GO_VERSION:-$(awk '$1 == "go" { print $2 }' go.mod)}
+    GO=(mise exec "go@$GO_VERSION" --)
+    mkdir -p "$(dirname "$GO_BIN")"
+    CGO_ENABLED=1 "${GO[@]}" go build -tags sqlite_fts5 -trimpath -ldflags='-s -w' -o "$GO_BIN" ./cmd/campfire
+    "${GO[@]}" go version -m "$GO_BIN" > "$GO_BIN.build-info"
     ;;
   *) echo "unknown step $step" >&2; exit 2 ;;
   esac
