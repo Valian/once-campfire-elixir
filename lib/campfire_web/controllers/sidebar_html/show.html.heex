@@ -1,0 +1,100 @@
+<Layouts.app flash={@flash} current_user={@current_user} turbo_frame={@turbo_frame}>
+  <.sidebar_frame>
+    <.stream_source stream={rooms_stream()} />
+    <.stream_source stream={user_rooms_stream(@current_user.id)} />
+
+    <div
+      class="sidebar__container overflow-y overflow-hide-scrollbar"
+      data-controller="badge-dot"
+      data-badge-dot-unread-class="unread"
+      data-action="rooms-list:unread@window->badge-dot#update rooms-list:read@window->badge-dot#update turbo:submit-start->turbo-frame#unpermanize"
+    >
+      <turbo-frame id="direct_rooms_control" target="_top">
+        <div class="directs gap overflow-x overflow-hide-scrollbar">
+          <a class="direct direct__new" data-turbo-frame="_self" href="/rooms/directs/new">
+            <span class="avatar avatar--icon">
+              <.image src="messages-add.svg" size="20" aria-hidden="true" class="colorize--black" />
+            </span>
+
+            <span class="direct__author flex max-width min-width border-radius pad-inline-half">
+              <span class="for-screen-reader">New</span>
+              <span class="txt-small overflow-clip">Ping</span>
+            </span>
+          </a>
+
+          <div
+            id="direct_rooms"
+            contents
+            data-controller="sorted-list"
+            data-action="rooms-list:unread@window->sorted-list#updateItem"
+          >
+            <%= for {membership, members} <- @sidebar.directs do %>
+              <.direct_room
+                room={membership.room}
+                members={members}
+                unread={membership.unread_at != nil}
+              />
+            <% end %>
+          </div>
+
+          <div contents>
+            <.direct_placeholder :for={user <- @sidebar.placeholders} user={user} />
+          </div>
+        </div>
+      </turbo-frame>
+
+      <div class="rooms position-relative flex flex-column gap">
+        <div id="shared_rooms" contents data-controller="sorted-list">
+          <.shared_room
+            :for={membership <- @sidebar.shared}
+            room={membership.room}
+            unread={membership.unread_at != nil}
+          />
+        </div>
+
+        <%= if can_create_rooms?(@current_user) do %>
+          <a
+            class="rooms__new-btn btn room align-center gap txt-reversed"
+            aria-label="New Chat Room"
+            href="/rooms/opens/new"
+          >
+            <.image
+              src="add.svg"
+              size="20"
+              aria-hidden="true"
+              style="view-transition-name: new-room"
+            />
+          </a>
+        <% end %>
+      </div>
+
+      <button class="btn sidebar__toggle" data-action="toggle-class#toggle">
+        <.image src="menu.svg" size="20" aria-hidden="true" />
+        <span class="for-screen-reader">Open menu</span>
+      </button>
+    </div>
+
+    <div class="flex align-end sidebar__tools gap justify-end">
+      <a class="btn avatar flex-item-no-shrink sidebar__tool" href="/users/me/profile">
+        <img
+          aria-hidden="true"
+          style={"view-transition-name: avatar-#{@current_user.id}"}
+          src={avatar_path(@current_user)}
+          width="48"
+          height="48"
+        />
+        <span class="for-screen-reader">My Settings</span>
+      </a>
+
+      <a class="btn align-center gap txt-reversed sidebar__tool" href="/account/edit">
+        <.image
+          src="settings.svg"
+          size="20"
+          aria-hidden="true"
+          style="view-transition-name: account-settings"
+        />
+        <span class="for-screen-reader">Account Settings</span>
+      </a>
+    </div>
+  </.sidebar_frame>
+</Layouts.app>
