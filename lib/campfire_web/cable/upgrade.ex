@@ -17,7 +17,9 @@ defmodule CampfireWeb.Cable.Upgrade do
   alias Campfire.Accounts
 
   @protocol "actioncable-v1-json"
-  @websocket_opts [timeout: :infinity, compress: true, max_frame_size: 1_048_576]
+  # No permessage-deflate (Rails' websocket-driver doesn't negotiate it either): compression
+  # runs per socket, so a broadcast to 1000 sockets would deflate the same frame 1000 times.
+  @websocket_opts [timeout: :infinity, compress: false, max_frame_size: 1_048_576]
 
   @impl true
   def init(opts), do: opts

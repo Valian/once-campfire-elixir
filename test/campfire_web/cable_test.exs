@@ -87,12 +87,14 @@ defmodule CampfireWeb.CableTest do
       assert_in_delta at, System.os_time(:second), 2
     end
 
-    test "permessage-deflate is negotiated when offered", %{port: port, cookie: cookie} do
+    test "permessage-deflate is declined (broadcasts stay encode-once)", %{
+      port: port,
+      cookie: cookie
+    } do
       ext = {"Sec-WebSocket-Extensions", "permessage-deflate; client_max_window_bits"}
       {:ok, _client, 101, resp} = CableClient.connect(port, headers(port, cookie, [ext]))
 
-      assert {_, value} = List.keyfind(resp, "sec-websocket-extensions", 0)
-      assert value =~ "permessage-deflate"
+      refute List.keyfind(resp, "sec-websocket-extensions", 0)
     end
 
     test "another origin, or no upgrade, is a 404", %{port: port, cookie: cookie} do

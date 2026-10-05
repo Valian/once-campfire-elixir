@@ -28,6 +28,10 @@ config :campfire,
        sqlite_pragmas ++
          [
            pool_size: 1,
+           # Writes queue behind the one connection; DBConnection's default (shed after 50 ms
+           # of queueing) turns a burst of 64 writers into 500s. Rails waits; so do we.
+           queue_target: 2_000,
+           queue_interval: 10_000,
            journal_mode: :wal,
            journal_size_limit: 67_108_864,
            default_transaction_mode: :immediate
