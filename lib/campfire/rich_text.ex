@@ -246,7 +246,9 @@ defmodule Campfire.RichText do
             content = attachable |> Attachments.render(ctx, attrs) |> HTML.to_binary()
 
             content =
-              if HTML.blank?(attr(attrs, "url")), do: Jason.encode!(content), else: content
+              if HTML.blank?(attr(attrs, "url")),
+                do: Jason.encode!(content, escape: :html_safe),
+                else: content
 
             attrs =
               attrs

@@ -192,8 +192,7 @@ defmodule CampfireWeb.NotificationsHelp do
             <li>Go to <em>System &gt; Notification</em>.</li>
             <li>
               Click <em><.image src="external/switch.svg" alt="the toggle button" size="22" /></em>
-              <em>ON</em>
-              for Campfire.
+              <em>ON</em> for Campfire.
             </li>
           </ol>
         <% ((@platform.firefox? or @platform.chrome?) and @desktop?) or (@platform.safari? and @desktop?) -> %>
