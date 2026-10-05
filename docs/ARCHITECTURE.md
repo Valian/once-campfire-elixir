@@ -21,6 +21,13 @@ database and Active Storage directory, unchanged. `docs/SPEC.md` is the contract
 | `CampfireWeb.Plugs` | `authenticity_token` → CSRF, `X-Version`/`X-Rev`, banned-IP 429, `@turbo_frame` |
 | `CampfireWeb.Layouts` | `<Layouts.app>`: full page or Turbo frame layout, slots `head nav footer sidebar` |
 | `CampfireWeb.Components` | `<.image src="x.svg">`, `<.avatar user>`, `avatar_path/1`, `<.local_datetime>`, `epoch_ms/1`, `<.csrf_input>`, `<.sidebar_frame>`, `<.translation_button>`, `<.account_logo>` |
+| `Campfire.Rooms` (reads) | `sidebar/1` (3 queries), `display_name/3` + `members_by_room/1` (direct names without N+1), `get_room_for_user/3`, `get_membership/2` |
+| `Campfire.Rooms` (writes) | `create_open_room/2`, `create_closed_room/3`, `find_or_create_direct_room/2`, `update_room/4` (rename/convert/revise), `destroy_room/1`, `update_involvement/2` |
+| `Campfire.Searches` | FTS5 search (terms quoted), recent searches (newest 10) |
+| `Campfire.Avatars` | avatar blob, square webp variant (vix, generated if missing), `attach/2`, `remove/1` |
+| `CampfireWeb.AvatarCache` | ETS: avatar token → ready response (etag, type, body, gzip); `forget/1` on any user change |
+| `CampfireWeb.RoomBroadcasts` | sidebar turbo streams for room/membership changes (SPEC §11.4) via `CampfireWeb.Cable.broadcast/2` |
+| `CampfireWeb.SidebarHTML` | sidebar page; `shared_room/1`, `direct_room/1` are also the broadcast payloads |
 | `CampfireWeb.Assets` | compile-time Propshaft manifest: `path/1`, Rails-identical stylesheet + importmap tags |
 | `CampfireWeb.RateLimiter` | ETS fixed-window counters (`hit/3`) |
 

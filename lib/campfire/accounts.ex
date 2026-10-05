@@ -173,11 +173,6 @@ defmodule Campfire.Accounts do
     Exqlite.Error -> {:error, :email_taken}
   end
 
-  def touch_user(%User{id: id}) do
-    Repo.update_all(from(u in User, where: u.id == ^id), set: [updated_at: Timestamp.utc_now()])
-    SessionCache.forget_user(id)
-  end
-
   defp present(value) when is_binary(value),
     do: if(String.trim(value) == "", do: nil, else: value)
 
