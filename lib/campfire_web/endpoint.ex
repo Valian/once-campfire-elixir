@@ -25,6 +25,9 @@ defmodule CampfireWeb.Endpoint do
 
   plug Plug.Static, at: "/", from: :campfire, only: ~w(robots.txt)
 
+  # Action Cable (WebSocket upgrade); needs no parsers or session.
+  plug CampfireWeb.Cable.Upgrade
+
   if code_reloading? do
     socket "/phoenix/live_reload/socket", Phoenix.LiveReloader.Socket
     plug Phoenix.LiveReloader
