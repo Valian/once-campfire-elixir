@@ -34,7 +34,8 @@ config :campfire,
            queue_interval: 10_000,
            journal_mode: :wal,
            journal_size_limit: 67_108_864,
-           default_transaction_mode: :immediate
+           default_transaction_mode: :immediate,
+           after_connect: {Campfire.Repo, :after_connect, []}
          ]
 
 config :campfire,
