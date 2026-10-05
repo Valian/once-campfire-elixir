@@ -44,10 +44,10 @@ a single statement. Natively (c=1, telemetry on the writer):
 
 | | tmpfs (first, misleading) | xfs, before | xfs, after |
 |---|---|---|---|
-| BEGIN→COMMIT | 310 µs | 772 µs | ~400 µs |
-| COMMIT | 31 µs | 415 µs | 57–212 µs (mean incl. checkpoints) |
+| writer busy per message | 310 µs | 776 µs | 543 µs |
+| COMMIT (mean, incl. checkpoints) | 31 µs | 415 µs | 212 µs |
 | statements (5) | 16–43 µs each | 27–60 µs each | same |
-| post rps / p99 (c=1) | 892 / 1.3 ms | 598 / 16 ms | 712 / 3.8 ms |
+| post rps / p99 (c=1) | 892 / 1.3 ms | 598 / 16 ms | 713 / 3.5 ms |
 
 So the macOS 3.6 ms was virtiofs; natively the statements are cheap and COMMIT was the cost.
 `strace -c` showed only ~28 `pwrite`s per message (≈1 µs each) and occasional `fsync`s, and the
@@ -86,14 +86,16 @@ writer anyway; a larger autocheckpoint gets most of the gain with one line.
 The tail at c=16/64 is the trade: a stall now holds up to ~16 queued posts for ~30 ms a quarter
 as often. Other routes are unaffected.
 
-**Writer occupancy now:** ~0.4 ms per message uncontended (c=1: 32–39% busy at 700–800 rps). At
+**Writer occupancy now:** ~0.55 ms per message uncontended (c=1: 39% busy at 713 rps), of which
+~170 µs is the amortised checkpoint (an ordinary COMMIT is ~40 µs). At
 saturation (c≥16, writer 99.8% busy) it is 1/throughput ≈ 1.0 ms: every statement takes 3–4×
 longer (100–160 µs) than uncontended. Not the run queue (raising the posting process to
-`:high` priority changed nothing) and not CPU saturation (the VM uses ~2.5 of 4 CPUs): exqlite
+`:high` priority changed nothing) and not CPU saturation (the VM uses ~2.5–3 of 4 CPUs): exqlite
 declares every NIF dirty-IO, including trivial ones (`changes`, `transaction_status`,
 `columns`, `release`), so a statement is ~6 hand-offs to a dirty IO thread and back, ~40 per
-post, each a thread wake-up when threads don't spin. Making those four NIFs regular
-(experiment only, `sqlite3_nif.c` flags, built from source on both sides):
+post, each a thread wake-up when threads don't spin. Making the trivial ones regular NIFs
+(`changes`, `columns`, `last_insert_rowid`, `transaction_status`, `release`;
+experiment only, `sqlite3_nif.c` flags, built from source on both sides):
 
 | rps, 2 runs each | post c=1 | post c=16 | post c=64 | search c=16 | room c=16 |
 |---|---|---|---|---|---|
@@ -114,7 +116,7 @@ saving); scheduler priority (no effect).
 strength of the macOS measurement (M1 below). Natively the per-thread schedstat told a different
 story: at c=16 the dirty IO threads ran 8.6 s of CPU in a 5 s window (1.7 cores) for ~1 s of
 SQLite work and waited 10 s in the OS run queue; normal schedulers waited 4 s. Spinning dirty
-threads (10 IO + 4 CPU, sized for the host, not the pin) compete with the schedulers for 4 CPUs.
+threads (10 IO, the BEAM's fixed default, + 4 CPU) compete with the schedulers for 4 CPUs.
 
 | rps (2 runs each) | room c=16 | messages c=16 | sidebar c=16 | search c=16 | post c=1 | post c=16 | post c=64 |
 |---|---|---|---|---|---|---|---|
