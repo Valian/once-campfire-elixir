@@ -1,0 +1,115 @@
+<Layouts.app
+  flash={@flash}
+  current_user={@current_user}
+  turbo_frame={@turbo_frame}
+  title="Search"
+  body_class="sidebar searches"
+>
+  <:nav>
+    <%= if @query do %>
+      <div class="searches__query flex align-center gap pad-block-start-half">
+        <div class="btn btn--reversed btn--faux align-center gap txt-nowrap">
+          <span class="overflow-ellipsis">“{@query}”</span>
+          <span class="flex-item-no-shrink">{length(@results)}</span>
+        </div>
+      </div>
+    <% end %>
+
+    <div class="searches__recents align-center gap pad-block-half overflow-y overflow-hide-scrollbar">
+      <.recent_searches searches={@recent_searches} />
+    </div>
+  </:nav>
+
+  <div id="message-area" class="message-area">
+    <div class="message-area--empty min-width center">
+      <figure class="center pad">
+        <.image src="search.svg" aria-hidden="true" class="colorize--black translucent" />
+      </figure>
+    </div>
+
+    <div
+      id="search-results"
+      class="messages searches__results"
+      data-controller="search-results"
+      data-search-results-target="messages"
+      data-search-results-me-class="message--me"
+      data-search-results-threaded-class="message--threaded"
+      data-search-results-mentioned-class="message--mentioned"
+      data-search-results-formatted-class="message--formatted"
+    >
+      <.result
+        :for={result <- @results}
+        message={result.message}
+        plain_text={result.plain_text}
+        room_name={result.room_name}
+        base_url={@base_url}
+      />
+    </div>
+  </div>
+
+  <:footer>
+    <div class="composer flex align-end gap">
+      <a
+        class="btn flex-item-no-shrink margin-block-end"
+        style="view-transition-name: input-switcher; --btn-border-radius: 0.5em"
+        href={if @return_to_room, do: "/rooms/#{@return_to_room.id}", else: "/"}
+      >
+        <.image src="arrow-left.svg" aria-hidden="true" />
+        <span class="for-screen-reader">Exit search </span>
+      </a>
+
+      <form
+        class="margin-block flex-item-grow contain flex align-center gap"
+        data-controller="form"
+        data-action="keydown.esc->form#cancel"
+        action="/searches"
+        accept-charset="UTF-8"
+        method="post"
+      >
+        <.csrf_input />
+        <div class="composer__input flex align-center flex-item-grow gap full-width input input--actor min-width">
+          <.image
+            src="search.svg"
+            size="20"
+            aria-hidden="true"
+            class="composer__input-hint colorize--black"
+            style="view-transition-name: input-btn;"
+          />
+
+          <input
+            value={@q}
+            class="searches__input input flex-item-grow"
+            role="searchbox"
+            aria-label="search"
+            autofocus="autofocus"
+            required="required"
+            type="text"
+            name="q"
+            id="q"
+          />
+
+          <a data-form-target="cancel" role="button" class="searches__reset" href="/searches">
+            <.image src="remove.svg" size="14" aria-hidden="true" class="colorize--black" />
+            <span class="for-screen-reader">Clear search field</span>
+          </a>
+
+          <button
+            name="button"
+            type="submit"
+            class="btn btn--reversed flex-item-no-shrink txt-small"
+            style="--btn-border-radius: 0.5em"
+          >
+            <.image src="arrow-up.svg" aria-hidden="true" />
+            <span class="for-screen-reader">Search</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </:footer>
+
+  <:sidebar>
+    <div class="rooms position-relative flex flex-column gap overflow-y overflow-hide-scrollbar">
+      <.recent_searches searches={@recent_searches} />
+    </div>
+  </:sidebar>
+</Layouts.app>

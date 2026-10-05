@@ -11,6 +11,7 @@ defmodule Campfire.Application do
         replica(),
         {Phoenix.PubSub, name: Campfire.PubSub},
         Campfire.Accounts.SessionCache,
+        CampfireWeb.AvatarCache,
         CampfireWeb.RateLimiter,
         CampfireWeb.Endpoint
       ]
