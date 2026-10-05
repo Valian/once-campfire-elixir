@@ -1,0 +1,6 @@
+## Erlang VM flags for the release (see `mix help release`).
+
+## Don't busy-wait idle schedulers: under a container CPU quota spinning burns the quota.
++sbwt none
++sbwtdcpu none
++sbwtdio none

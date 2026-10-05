@@ -1,0 +1,9 @@
+.git
+_build
+deps
+tmp
+bench
+docs
+test
+*.db
+*.sqlite3*
