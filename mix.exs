@@ -70,5 +70,9 @@ defmodule Campfire.MixProject do
     end
 
     File.rm("tmp/test.sqlite3-shm")
+
+    # Active Storage files (config/test.exs points :storage_root here); tests may add to it.
+    File.rm_rf!("tmp/test_storage")
+    File.cp_r!(Path.join(System.get_env("SEED_DIR", "bench/seed"), "storage"), "tmp/test_storage")
   end
 end
