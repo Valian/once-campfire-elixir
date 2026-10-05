@@ -1,0 +1,27 @@
+#!/bin/sh
+# Copies the Rails app's precompiled (Propshaft) assets and static pages out of the reference
+# image into priv/static, then writes .gz siblings for Plug.Static's `gzip: true`.
+# Assets are served byte-for-byte as Rails built them: never re-digest (CSS url()s embed digests).
+#
+#   bin/extract-assets [image]     # default: campfire-reference:app (built by bench/make-seed)
+set -eu
+IMAGE=${1:-campfire-reference:app}
+ROOT=$(CDPATH= cd -- "$(dirname "$0")/.." && pwd)
+DEST="$ROOT/priv/static"
+
+CONTAINER=$(docker create "$IMAGE")
+trap 'docker rm "$CONTAINER" >/dev/null' EXIT
+
+rm -rf "$DEST/assets"
+mkdir -p "$DEST/assets"
+docker cp -q "$CONTAINER:/rails/public/assets/." "$DEST/assets/"
+for file in robots.txt 404.html 422.html 500.html 502.html; do
+  docker cp -q "$CONTAINER:/rails/public/$file" "$DEST/$file"
+done
+
+# -n: no name/timestamp in the header, so output is reproducible. Skip files that are already
+# compressed (gem-shipped *.gz/*.br, images, audio).
+find "$DEST/assets" -type f \( -name '*.css' -o -name '*.js' -o -name '*.svg' -o -name '*.map' \
+  -o -name '*.json' -o -name '*.txt' \) ! -name '.manifest.json' -exec gzip -9 -n -k -f {} \;
+
+echo "extracted $(find "$DEST/assets" -type f ! -name '*.gz' | wc -l | tr -d ' ') assets from $IMAGE"
