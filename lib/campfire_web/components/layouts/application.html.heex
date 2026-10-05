@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>{@title}</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, user-scalable=no, interactive-widget=resizes-content"
+    />
+    <meta name="view-transition" content="same-origin" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="csrf-param" content="authenticity_token" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <%= if @current_user do %>
+      <meta name="current-user-id" content={@current_user.id} />
+      <meta name="current-user-name" content={@current_user.name} />
+    <% end %>
+    <meta name="action-cable-url" content="/cable" />
+
+    <meta name="vapid-public-key" content={Application.get_env(:campfire, :vapid_public_key)} />
+    <meta name="turbo-prefetch" content="true" />
+
+    <link rel="manifest" href="/webmanifest.json" />
+    <link rel="icon" href={account_logo_path()} type="image/png" />
+    <link rel="apple-touch-icon" href={account_logo_path()} />
+
+    {Assets.stylesheet_tags()}
+    <%= if styles = custom_styles() do %>
+      <style data-turbo-track="reload">
+        <%= raw(styles) %>
+      </style>
+    <% end %>
+
+    {Assets.importmap_tags()}
+
+    {render_slot(@head)}
+  </head>
+
+  <body class={body_class(@body_class, @current_user)} data-controller="local-time lightbox">
+    <a href="#main-content" class="skip-navigation btn">Skip to main content</a>
+
+    <nav id="nav">{render_slot(@nav)}</nav>
+
+    <%= if message = Phoenix.Flash.get(@flash, :notice) || Phoenix.Flash.get(@flash, :alert) do %>
+      <% alert? = Phoenix.Flash.get(@flash, :alert) != nil %>
+      <div
+        class="flash"
+        data-controller="element-removal"
+        data-action="animationend->element-removal#remove"
+      >
+        <div
+          class="flash__inner shadow"
+          style={alert? && "--flash-background: var(--color-negative)"}
+        >
+          <.image
+            src={if alert?, do: "alert.svg", else: "check.svg"}
+            size="24"
+            aria-hidden="true"
+            class="colorize--white"
+          />
+        </div>
+        <span class="for-screen-reader" role="alert" aria-atomic="true">{message}</span>
+      </div>
+    <% end %>
+
+    <main id="main-content">
+      {render_slot(@inner_block)}
+
+      <footer id="footer">{render_slot(@footer)}</footer>
+    </main>
+
+    <aside id="sidebar" data-controller="toggle-class" data-toggle-class-toggle-class="open">
+      {render_slot(@sidebar)}
+    </aside>
+
+    <dialog
+      class="lightbox"
+      aria-label="Image Viewer (Press escape to close)"
+      data-lightbox-target="dialog"
+      data-action="close->lightbox#reset"
+    >
+      <img src="" class="lightbox__image" data-lightbox-target="zoomedImage" />
+
+      <form method="dialog" class="lightbox__btn">
+        <button class="btn">
+          <.image src="remove.svg" aria-hidden="true" />
+          <span class="for-screen-reader">Close image viewer</span>
+        </button>
+      </form>
+
+      <a
+        href=""
+        class="lightbox__btn--download btn hide-in-ios-pwa"
+        data-lightbox-target="download"
+      >
+        <.image src="download.svg" aria-hidden="true" />
+        <span class="for-screen-reader">Download file</span>
+      </a>
+
+      <button
+        class="lightbox__btn--share btn"
+        data-controller="web-share"
+        data-action="web-share#share"
+        data-web-share-files-value=""
+        data-lightbox-target="share"
+      >
+        <.image src="share.svg" aria-hidden="true" />
+        <span class="for-screen-reader">Share file</span>
+      </button>
+    </dialog>
+
+    <a
+      href="https://once.com"
+      id="app-logo"
+      target="_blank"
+      aria-label="Once software from 37signals home page"
+    >
+      <.image src="campfire-icon.png" alt="Campfire logo" width="256" height="216" />
+    </a>
+  </body>
+</html>

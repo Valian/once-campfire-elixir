@@ -1,0 +1,10 @@
+<html>
+  <head>
+    <meta name="csrf-param" content="authenticity_token" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    {render_slot(@head)}
+  </head>
+  <body>
+    {render_slot(@inner_block)}
+  </body>
+</html>

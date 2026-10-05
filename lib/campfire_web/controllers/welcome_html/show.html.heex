@@ -1,0 +1,18 @@
+<Layouts.app
+  flash={@flash}
+  current_user={@current_user}
+  turbo_frame={@turbo_frame}
+  title="No rooms yet"
+  body_class="sidebar"
+>
+  <div id="message-area" class="message-area">
+    <div class="message-area--empty min-width center">
+      <figure class="center pad">
+        <.image src="messages-empty.svg" aria-hidden="true" class="colorize--black translucent" />
+        <span class="for-screen-reader">{@current_user.name}</span>
+      </figure>
+    </div>
+  </div>
+
+  <:sidebar><.sidebar_frame src="/users/me/sidebar" /></:sidebar>
+</Layouts.app>

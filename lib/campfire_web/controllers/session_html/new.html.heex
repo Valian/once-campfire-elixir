@@ -1,0 +1,86 @@
+<Layouts.app
+  flash={@flash}
+  current_user={@current_user}
+  turbo_frame={@turbo_frame}
+  title="Sign in"
+>
+  <:head><meta name="turbo-visit-control" content="reload" /></:head>
+
+  <section class="txt-align-center">
+    <div class={["panel", Phoenix.Flash.get(@flash, :alert) && "shake"]}>
+      <.account_logo class="center margin-block-end txt-xx-large" />
+
+      <form
+        class="flex flex-column gap"
+        action={~p"/session"}
+        accept-charset="UTF-8"
+        method="post"
+      >
+        <.csrf_input />
+        <fieldset class="flex flex-column gap center-block upad">
+          <legend class="txt-large txt-align-center">
+            <strong>{Accounts.account() && Accounts.account().name}</strong>
+          </legend>
+
+          <div class="flex align-center gap">
+            <.translation_button key={:email_address} />
+            <label class="flex align-center gap input input--actor txt-large">
+              <input
+                required
+                class="input"
+                autofocus
+                autocomplete="username"
+                placeholder="Enter your email address"
+                type="email"
+                name="email_address"
+                id="email_address"
+                value={@email_address}
+              />
+              <.image src="email.svg" size="24" aria-hidden="true" class="colorize--black" />
+            </label>
+          </div>
+
+          <div class="flex align-center gap">
+            <.translation_button key={:password} />
+            <label class="flex align-center gap input input--actor txt-large">
+              <input
+                required
+                class="input"
+                autocomplete="current-password"
+                placeholder="Enter your password"
+                maxlength="72"
+                size="72"
+                type="password"
+                name="password"
+                id="password"
+              />
+              <.image src="password.svg" size="24" aria-hidden="true" class="colorize--black" />
+            </label>
+          </div>
+
+          <button name="log_in" type="submit" class="btn btn--reversed center txt-large">
+            <.image src="arrow-right.svg" aria-hidden="true" />
+            <span class="for-screen-reader">Go</span>
+          </button>
+        </fieldset>
+      </form>
+    </div>
+
+    <%= if owner = Accounts.first_administrator() do %>
+      <div class="txt-align-center margin-block-double full-width">
+        <a
+          class="btn center"
+          title={"Email #{owner.name}"}
+          href={~s(mailto:"#{owner.name}" <#{owner.email_address}>)}
+        >
+          <.image src="lifebuoy.svg" aria-hidden="true" />
+          <span>{owner.email_address}</span>
+        </a>
+
+        <div class="txt-align-center center margin-block txt-subtle">
+          Campfire&trade; version <.version_badge />
+        </div>
+      </div>
+    <% end %>
+  </section>
+</Layouts.app>
