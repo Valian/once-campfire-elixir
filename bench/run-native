@@ -33,7 +33,8 @@ Knobs (env): SERVER_CPUS=4-7 LOADGEN_CPUS=8-11 HARNESS_CPUS=0-3 (this script, th
   HTTP_SECS=8 HTTP_CONCS="1 16 64" CABLE_CLIENTS="100 500 1000" CABLE_TPUT_SECS=15 CABLE_POSTERS=4
   UPLOAD_REPS=5 PORT=4390 (and PORT+1) SUITES="http cable upload" SETTLE_SECS=10 LOAD_MAX=3
   LOAD_WAIT_SECS=300 REDIS_URL=redis://127.0.0.1:6379/0 EXTRA_ENV="K=V ..." (every app)
-  REFERENCE_DIR, ELIXIR_OFFICIAL_DIR (default bench/.cache/once-campfire{,-elixir}), RUBY_VERSION
+  REFERENCE_DIR, ELIXIR_OFFICIAL_DIR (default bench/.cache/once-campfire{,-elixir}), OURS_REL (default
+  _build/prod/rel/campfire, e.g. a `mix release --path` build of another commit for A/B), RUBY_VERSION
   (default: REFERENCE_DIR/.ruby-version, run through `mise exec ruby@...`), JEMALLOC=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
 """
 import argparse, glob, json, os, resource, shutil, signal, socket, subprocess, sys, threading, time, urllib.request
@@ -53,7 +54,7 @@ LOAD_WAIT_SECS = int(E("LOAD_WAIT_SECS", "300"))
 REDIS_URL = E("REDIS_URL", "redis://127.0.0.1:6379/0")
 REFERENCE_DIR = os.path.abspath(E("REFERENCE_DIR", os.path.join(BENCH, ".cache", "once-campfire")))
 OFFICIAL_DIR = os.path.abspath(E("ELIXIR_OFFICIAL_DIR", os.path.join(BENCH, ".cache", "once-campfire-elixir")))
-OURS_REL = os.path.join(ROOT, "_build", "prod", "rel", "campfire")
+OURS_REL = os.path.abspath(E("OURS_REL", os.path.join(ROOT, "_build", "prod", "rel", "campfire")))
 OFFICIAL_REL = os.path.join(OFFICIAL_DIR, "_build", "prod", "rel", "campfire")
 OFFICIAL_BIN = os.path.join(OFFICIAL_DIR, ".native", "bin")   # campfire-vips, campfire-html (bench/setup-native)
 JEMALLOC = E("JEMALLOC", "/usr/lib/x86_64-linux-gnu/libjemalloc.so.2")
@@ -168,10 +169,10 @@ def process_model(sid):
         except OSError:
             continue
         p = {"role": role(cmd), "threads": len(comms), "cmd": cmd[:160]}
-        if "beam.smp" in cmd:  # thread names are cut to 15 chars: N_scheduler, N_dirty_cpu_sch, N_dirty_io_sche
-            p["schedulers"] = sum(c.endswith("_scheduler") for c in comms)
-            p["dirty_cpu_schedulers"] = sum("_dirty_cpu_" in c for c in comms)
-            p["dirty_io_schedulers"] = sum("_dirty_io_" in c for c in comms)
+        if "beam.smp" in cmd:  # thread names: erts_sched_N, erts_dcpus_N, erts_dios_N (ERTS 16+)
+            p["schedulers"] = sum(c.startswith("erts_sched_") for c in comms)
+            p["dirty_cpu_schedulers"] = sum(c.startswith("erts_dcpus_") for c in comms)
+            p["dirty_io_schedulers"] = sum(c.startswith("erts_dios_") for c in comms)
         if "puma" in cmd:
             p["puma"] = "worker" if "cluster worker" in cmd else "master"
         if "resque" in cmd:
@@ -480,7 +481,9 @@ def main():
 
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (min(65536, hard), hard))
-    cargo = ["cargo"] if shutil.which("cargo") else ["mise", "exec", "rust@stable", "--", "cargo"]
+    # A mise shim for cargo can exist without a version set: use cargo only if it actually runs.
+    cargo = ["cargo"] if subprocess.run(["cargo", "--version"], capture_output=True, check=False).returncode == 0 \
+        else ["mise", "exec", "rust@stable", "--", "cargo"]
     subprocess.run([*cargo, "build", "--release", "-q"], cwd=os.path.join(BENCH, "loadgen"), check=True)
     write_env(out, apps)
 

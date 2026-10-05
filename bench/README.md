@@ -1,5 +1,8 @@
 # bench
 
+Two harnesses over the same seed, load generator and suites (`lib/common.py`): `run-native` (Linux,
+bare processes; the README's primary numbers) and `run` (Docker on macOS). See "Native Linux" below.
+
 Side-by-side benchmark of Campfire implementations in Docker on macOS (Docker Desktop), ported from
 [once-campfire-rust](https://github.com/basecamp/once-campfire-rust)'s `bench/run`. Same seed, same
 load generator, same suites; see `NOTICE` for what was copied.
@@ -57,3 +60,28 @@ inside the container), `HTTP_SECS=8`, `HTTP_CONCS="1 16 64"`, `CABLE_CLIENTS="10
   `CPUSET=` when that matters. The load generator shares the Mac's cores with the VM.
 - Memory is the container cgroup's `memory.current` (idle) and `memory.peak` (includes page cache).
   The per-process memory breakdown of the original is not ported.
+
+## Native Linux
+
+`bench/run-native` runs each app as a bare process tree (its production process model), pinned
+with `taskset` to `SERVER_CPUS` (default 4-7), with the loadgen on `LOADGEN_CPUS` (8-11) over
+loopback. One app at a time, fresh seed copy per run, cold start until `/up`, memory as PSS/RSS
+of the app's processes from `/proc` (no page cache). Full docs in the script's header.
+
+```sh
+bench/setup-native                     # once: loadgen, Rails @ pinned commit, official port, ours (mise toolchains)
+bench/run-native --apps reference,elixir-official,ours --reps 2
+HTTP_SECS=3 HTTP_CONCS=16 CABLE_CLIENTS=100 bench/run-native --apps reference,elixir-official,ours --reps 1   # smoke
+OURS_REL=/path/to/other/rel SUITES=http bench/run-native --apps ours --reps 1                                # A/B a build
+```
+
+- `reference`: Thruster + Puma (`WEB_CONCURRENCY = ceil(0.666 × cpus)`, 5 threads) + resque-pool
+  (its `config/resque-pool.yml`: `ceil(0.5 × cpus)` workers), jemalloc, as its Procfile minus Redis.
+- `elixir-official`: its release behind Thruster, as its `bin/container-start`.
+- `ours`: `_build/prod/rel/campfire` serving the port itself.
+- Both Elixir apps get `ELIXIR_ERL_OPTIONS="+S N:N +SDcpu N:N"` (N = pinned CPUs);
+  `env.txt` records what each VM actually reports, and the observed process tree per run.
+- Redis is external (`REDIS_URL`, a container on the host), `FLUSHALL`ed before each Rails/official
+  run; its memory is reported separately.
+- Before each run the harness waits (up to `LOAD_WAIT_SECS`) for the 1-minute load average to
+  drop below `LOAD_MAX` and records it.
