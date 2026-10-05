@@ -185,7 +185,11 @@ routes are unchanged within noise.
 
 ### N5. Cable connection resets
 
-Pending: checked in the full native run (README).
+They don't reproduce natively. In the full run (`results/linux-20261005-191554`) every
+cable sample of every app reached 100/500/1,000 ready in both reps, and the loadgen's per-run
+stderr has no connection errors. Ours connects 1,000 clients in 0.33 s (official 0.60 s, Rails
+2.4 s). That fits M4's conclusion: the resets came from Docker Desktop's port forwarder, not
+the app. No change.
 
 ## Part 2: macOS / Docker Desktop (first pass)
 

@@ -1,0 +1,117 @@
+date: 2026-10-05T19:10:30.211335
+mode: native (bench/run-native), bare processes, loopback
+host: g36-1, 7.0.0-38-generic, 12th Gen Intel(R) Core(TM) i5-12500, 12 threads, 62GB, Ubuntu 26.04.1 LTS
+governor: powersave 0
+server cpus: 4-7 (siblings 4-5 6-7; process model for 4 cpus); loadgen cpus: 8-11 (siblings 10-11 8-9); harness: 0-3
+suites: ['http', 'cable', 'upload'] http secs 3 concs ['16'] cable ['100']
+env: WEB_CONCURRENCY=3 JOB_CONCURRENCY=3 RAILS_MAX_THREADS=5 
+loadgen: 51c78be2be1c2091b3294150f1832d80ed58837c (bench/loadgen)
+redis (external, shared, FLUSHALL per run): redis://127.0.0.1:6379/0 redis 7.4.11
+thruster: /home/hermes/Projects/campfire-bench/reference/vendor/bundle/ruby/3.4.0/gems/thruster-0.1.23-x86_64-linux/exe/x86_64-linux/thrust
+reference: /home/hermes/Projects/campfire-bench/reference @ 90b330024dec3e757c79b6a7e6568f93da8e3148; ruby 3.4.10 (2026-06-30 revision 2b0b7728dc) +PRISM [x86_64-linux]; jemalloc /usr/lib/x86_64-linux-gnu/libjemalloc.so.2; libvips 8.18.0
+elixir-official: /home/hermes/Projects/campfire-bench/elixir-official @ b6b82e50a653c4060136bb04e805eb78fd76ba10; release erts-16.4 elixir-1.19.5; ELIXIR_ERL_OPTIONS="+S 4:4 +SDcpu 4:4"; VM under taskset 4-7: schedulers_online=4/4 dirty_cpu_schedulers_online=4 dirty_io_schedulers=10 otp=28 elixir=1.19.5
+ours: /home/hermes/orca/workspaces/once-campfire-elixir/server-results @ 51c78be2be1c2091b3294150f1832d80ed58837c; release erts-16.4 elixir-1.19.5; ELIXIR_ERL_OPTIONS="+S 4:4 +SDcpu 4:4"; VM under taskset 4-7: schedulers_online=4/4 dirty_cpu_schedulers_online=4 dirty_io_schedulers=10 otp=28 elixir=1.19.5
+[19:10:30] load before run: 2.78 3.67 3.75 4/1328 2107749 (waited 0s)
+[19:10:43] reference rep 1: puma workers 3 (OS threads per worker [13, 12, 12], RAILS_MAX_THREADS 5); resque workers 2; 10 processes: jobs, other, puma, thrust
+[19:10:43] reference rep 1: cold start 2746ms, idle PSS 315MB RSS 989MB in 10 processes
+[19:10:49] reference rep 1: room_show c=16 135.5 rps p50 106.751 p99 299.775 {'200': 417} err 0
+[19:10:54] reference rep 1: messages_page c=16 266.2 rps p50 58.367 p99 116.863 {'200': 811} err 0
+[19:10:59] reference rep 1: sidebar c=16 345.4 rps p50 43.583 p99 115.007 {'200': 1052} err 0
+[19:11:04] reference rep 1: search c=16 255.9 rps p50 57.727 p99 114.751 {'200': 777} err 0
+[19:11:10] reference rep 1: avatar c=16 55404.5 rps p50 0.214 p99 1.139 {'200': 166232} err 0
+[19:11:15] reference rep 1: static_css c=16 69607.3 rps p50 0.176 p99 0.941 {'200': 208847} err 0
+[19:11:20] reference rep 1: up c=16 2800.2 rps p50 5.583 p99 11.015 {'200': 8412} err 0
+[19:11:25] reference rep 1: post_message c=16 167.8 rps p50 85.439 p99 227.583 {'200': 513} err 0
+[19:11:47] reference rep 1: cable 100 clients ready 100 lat p50 30.895 p99 66.175 tput 59.3 msg/s 892/892
+[19:11:50] reference rep 1: upload median 67.1ms
+[19:11:50] reference rep 1: done -> results/linux-20261005-191027-smoke/reference-1.json
+[19:12:10] load before run: 2.70 3.43 3.66 2/1331 2109188 (waited 20s)
+[19:12:21] elixir-official rep 1: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 2 processes: beam, thrust
+[19:12:21] elixir-official rep 1: cold start 565ms, idle PSS 139MB RSS 175MB in 2 processes; beam: 4 schedulers
+[19:12:26] elixir-official rep 1: room_show c=16 467.4 rps p50 33.951 p99 44.351 {'200': 1417} err 0
+[19:12:31] elixir-official rep 1: messages_page c=16 627.5 rps p50 25.247 p99 37.471 {'200': 1893} err 0
+[19:12:36] elixir-official rep 1: sidebar c=16 785.5 rps p50 20.271 p99 25.199 {'200': 2368} err 0
+[19:12:41] elixir-official rep 1: search c=16 750.5 rps p50 21.231 p99 26.207 {'200': 2263} err 0
+[19:12:46] elixir-official rep 1: avatar c=16 56549.9 rps p50 0.205 p99 1.164 {'200': 169669} err 0
+[19:12:51] elixir-official rep 1: static_css c=16 68935.3 rps p50 0.177 p99 0.968 {'200': 206829} err 0
+[19:12:56] elixir-official rep 1: up c=16 4845.0 rps p50 3.227 p99 7.167 {'200': 14547} err 0
+[19:13:01] elixir-official rep 1: post_message c=16 459.9 rps p50 30.927 p99 56.031 {'200': 1389} err 0
+[19:13:23] elixir-official rep 1: cable 100 clients ready 100 lat p50 10.167 p99 23.615 tput 229.7 msg/s 3447/3447
+[19:13:26] elixir-official rep 1: upload median 86.5ms
+[19:13:27] elixir-official rep 1: done -> results/linux-20261005-191027-smoke/elixir-official-1.json
+[19:14:17] load before run: 2.66 3.41 3.63 2/1333 2110781 (waited 50s)
+[19:14:27] ours rep 1: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 1 processes: beam
+[19:14:27] ours rep 1: cold start 670ms, idle PSS 159MB RSS 200MB in 1 processes; beam: 4 schedulers
+[19:14:33] ours rep 1: room_show c=16 1117.4 rps p50 14.143 p99 19.551 {'200': 3366} err 0
+[19:14:38] ours rep 1: messages_page c=16 1334.5 rps p50 11.911 p99 17.535 {'200': 4011} err 0
+[19:14:43] ours rep 1: sidebar c=16 1978.0 rps p50 8.055 p99 10.263 {'200': 5945} err 0
+[19:14:48] ours rep 1: search c=16 1656.1 rps p50 9.615 p99 12.495 {'200': 4980} err 0
+[19:14:53] ours rep 1: avatar c=16 33138.2 rps p50 0.484 p99 0.605 {'200': 99433} err 0
+[19:14:58] ours rep 1: static_css c=16 89925.0 rps p50 0.175 p99 0.242 {'200': 269805} err 0
+[19:15:03] ours rep 1: up c=16 80440.3 rps p50 0.198 p99 0.262 {'200': 241348} err 0
+[19:15:08] ours rep 1: post_message c=16 945.1 rps p50 13.895 p99 65.279 {'200': 2846} err 0
+[19:15:30] ours rep 1: cable 100 clients ready 100 lat p50 7.171 p99 10.119 tput 562.5 msg/s 8440/8440
+[19:15:32] ours rep 1: upload median 40.5ms
+[19:15:33] ours rep 1: done -> results/linux-20261005-191027-smoke/ours-1.json
+# Results: linux-20261005-191027-smoke
+
+reference: 1 rep(s), elixir-official: 1 rep(s), ours: 1 rep(s)
+
+```
+date: 2026-10-05T19:10:30.211335
+mode: native (bench/run-native), bare processes, loopback
+host: g36-1, 7.0.0-38-generic, 12th Gen Intel(R) Core(TM) i5-12500, 12 threads, 62GB, Ubuntu 26.04.1 LTS
+governor: powersave 0
+server cpus: 4-7 (siblings 4-5 6-7; process model for 4 cpus); loadgen cpus: 8-11 (siblings 10-11 8-9); harness: 0-3
+suites: ['http', 'cable', 'upload'] http secs 3 concs ['16'] cable ['100']
+env: WEB_CONCURRENCY=3 JOB_CONCURRENCY=3 RAILS_MAX_THREADS=5 
+loadgen: 51c78be2be1c2091b3294150f1832d80ed58837c (bench/loadgen)
+redis (external, shared, FLUSHALL per run): redis://127.0.0.1:6379/0 redis 7.4.11
+thruster: /home/hermes/Projects/campfire-bench/reference/vendor/bundle/ruby/3.4.0/gems/thruster-0.1.23-x86_64-linux/exe/x86_64-linux/thrust
+reference: /home/hermes/Projects/campfire-bench/reference @ 90b330024dec3e757c79b6a7e6568f93da8e3148; ruby 3.4.10 (2026-06-30 revision 2b0b7728dc) +PRISM [x86_64-linux]; jemalloc /usr/lib/x86_64-linux-gnu/libjemalloc.so.2; libvips 8.18.0
+elixir-official: /home/hermes/Projects/campfire-bench/elixir-official @ b6b82e50a653c4060136bb04e805eb78fd76ba10; release erts-16.4 elixir-1.19.5; ELIXIR_ERL_OPTIONS="+S 4:4 +SDcpu 4:4"; VM under taskset 4-7: schedulers_online=4/4 dirty_cpu_schedulers_online=4 dirty_io_schedulers=10 otp=28 elixir=1.19.5
+ours: /home/hermes/orca/workspaces/once-campfire-elixir/server-results @ 51c78be2be1c2091b3294150f1832d80ed58837c; release erts-16.4 elixir-1.19.5; ELIXIR_ERL_OPTIONS="+S 4:4 +SDcpu 4:4"; VM under taskset 4-7: schedulers_online=4/4 dirty_cpu_schedulers_online=4 dirty_io_schedulers=10 otp=28 elixir=1.19.5
+observed reference rep 1: puma workers 3 (OS threads per worker [13, 12, 12], RAILS_MAX_THREADS 5); resque workers 2; 10 processes: jobs, other, puma, thrust
+observed elixir-official rep 1: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 2 processes: beam, thrust
+observed ours rep 1: beam threads: 4 schedulers, 4 dirty cpu, 10 dirty io; 1 processes: beam
+```
+
+## Startup and memory
+
+| metric | reference | elixir-official | ours |
+|---|---|---|---|
+| cold start to /up (ms) | 2,746 | 565 | 670 |
+| idle PSS (MB) | 315 | 139 | 159 |
+| peak PSS (MB) | 1,081 | 320 | 270 |
+| idle RSS (MB) | 989 | 175 | 200 |
+| peak RSS (MB) | 1,549 | 356 | 311 |
+| external Redis RSS at end (MB) | 13.6 | 22.0 | – |
+
+## HTTP (median rps, p50/p99 ms)
+
+| route | conc | reference rps | reference p50 | reference p99 | reference bad | elixir-official rps | elixir-official p50 | elixir-official p99 | elixir-official bad | ours rps | ours p50 | ours p99 | ours bad |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| room_show | 16 | 136 | 107 | 300 | 0 | 467 | 34.0 | 44.4 | 0 | 1,117 | 14.1 | 19.6 | 0 |
+| messages_page | 16 | 266 | 58.4 | 117 | 0 | 628 | 25.2 | 37.5 | 0 | 1,334 | 11.9 | 17.5 | 0 |
+| sidebar | 16 | 345 | 43.6 | 115 | 0 | 786 | 20.3 | 25.2 | 0 | 1,978 | 8.05 | 10.3 | 0 |
+| search | 16 | 256 | 57.7 | 115 | 0 | 750 | 21.2 | 26.2 | 0 | 1,656 | 9.62 | 12.5 | 0 |
+| avatar | 16 | 55,404 | 0.21 | 1.14 | 0 | 56,550 | 0.20 | 1.16 | 0 | 33,138 | 0.48 | 0.60 | 0 |
+| static_css | 16 | 69,607 | 0.18 | 0.94 | 0 | 68,935 | 0.18 | 0.97 | 0 | 89,925 | 0.17 | 0.24 | 0 |
+| up | 16 | 2,800 | 5.58 | 11.0 | 0 | 4,845 | 3.23 | 7.17 | 0 | 80,440 | 0.20 | 0.26 | 0 |
+| post_message | 16 | 168 | 85.4 | 228 | 0 | 460 | 30.9 | 56.0 | 0 | 945 | 13.9 | 65.3 | 0 |
+
+## Action Cable fan-out
+
+| clients | metric | reference | elixir-official | ours |
+|---|---|---|---|---|
+| 100 | ready | 100 | 100 | 100 |
+| 100 | connect (s) | 0.34 | 0.12 | 0.06 |
+| 100 | fan-out latency p50 (ms) | 30.9 | 10.2 | 7.17 |
+| 100 | fan-out latency p99 (ms) | 66.2 | 23.6 | 10.1 |
+| 100 | delivered msg/s | 59.3 | 230 | 562 |
+
+## Upload (black_hole.jpg, post + thumbnail)
+
+| metric | reference | elixir-official | ours |
+|---|---|---|---|
+| median total (ms) | 67.1 | 86.5 | 40.5 |
