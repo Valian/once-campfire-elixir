@@ -5,7 +5,7 @@ defmodule CampfireWeb.RoomPageTest do
 
   setup %{conn: conn} do
     CampfireWeb.MessageRenderer.clear()
-    {:ok, conn: log_in(conn, user("david"))}
+    {:ok, conn: sign_in(conn, user("david"))}
   end
 
   test "the busy room: last 40 messages and the scraped contract", %{conn: conn} do

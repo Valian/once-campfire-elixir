@@ -59,6 +59,9 @@ defmodule CampfireWeb.Cable do
   @doc "`{room gid param}:messages`: message, boost and edit turbo streams of a room."
   def room_messages_stream(room), do: room_gid_param(room) <> ":messages"
 
+  @doc "`rooms`: sidebar updates everyone gets (open rooms, destroyed rooms)."
+  def rooms_stream, do: "rooms"
+
   @doc "`{user gid param}:rooms`: a user's private sidebar updates."
   def user_rooms_stream(user_id), do: Campfire.Signing.gid_param("User", user_id) <> ":rooms"
 

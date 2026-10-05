@@ -4,7 +4,7 @@ defmodule CampfireWeb.MessageBroadcasts do
   payload is rendered once, whatever the number of subscribers; the message partial carries no
   CSRF token (Turbo sends the header with every form).
   """
-  alias Campfire.Messages
+  alias Campfire.Rooms
   alias Campfire.Messages.{Boost, Message}
   alias Campfire.Rooms.Room
   alias CampfireWeb.{Cable, MessageComponents, MessageRenderer, RoomHTML, TurboStream}
@@ -14,8 +14,8 @@ defmodule CampfireWeb.MessageBroadcasts do
     html = MessageRenderer.render_one(message, MessageRenderer.broadcast_ctx(conn))
     Cable.broadcast(stream(room), TurboStream.append(RoomHTML.dom_id(room, "messages"), html))
 
-    room.id
-    |> Messages.member_ids()
+    room
+    |> Rooms.member_ids()
     |> Enum.map(&Cable.unreads_stream/1)
     |> Cable.broadcast_many(%{"roomId" => room.id})
   end

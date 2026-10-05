@@ -19,7 +19,7 @@ defmodule CampfireWeb.MessageRenderer do
   alias Campfire.Messages
   alias Campfire.Messages.Message
   alias Campfire.RichText
-  alias Campfire.Rooms.Lookup
+  alias Campfire.Rooms
   alias CampfireWeb.MessageComponents
 
   @table __MODULE__
@@ -57,15 +57,13 @@ defmodule CampfireWeb.MessageRenderer do
   @doc "For broadcasts: no viewer, so no token (Turbo sends the header anyway)."
   def broadcast_ctx(conn), do: %{csrf: "", base_url: escaped_base_url(conn)}
 
-  @doc "`scheme://host[:port]` of the request (absolute URLs Rails renders use it)."
-  def base_url(%Plug.Conn{scheme: scheme, host: host, port: port}) do
-    default? = (scheme == :http and port == 80) or (scheme == :https and port == 443)
-    "#{scheme}://#{host}#{if default?, do: "", else: ":#{port}"}"
-  end
-
   # The host comes from the request; it is filled into an attribute unescaped otherwise.
   defp escaped_base_url(conn),
-    do: conn |> base_url() |> Phoenix.HTML.html_escape() |> Phoenix.HTML.safe_to_string()
+    do:
+      conn
+      |> CampfireWeb.Plugs.base_url()
+      |> Phoenix.HTML.html_escape()
+      |> Phoenix.HTML.safe_to_string()
 
   @doc """
   The partials of `messages` (each with `creator` and `room` loaded), as iodata. Misses are
@@ -156,7 +154,7 @@ defmodule CampfireWeb.MessageRenderer do
     messages
     |> Enum.map(& &1.room)
     |> Enum.uniq_by(& &1.id)
-    |> Map.new(&{&1.id, Lookup.display_name(&1, nil)})
+    |> Rooms.display_names()
   end
 
   # A message that can't be rendered (its creator is gone, say) shows as such, as in Rails.
@@ -203,33 +201,9 @@ defmodule CampfireWeb.MessageRenderer do
          false}
 
       true ->
-        ctx = %{users: users, host: nil, mention: &mention/1}
+        ctx = %{users: users, host: nil, mention: &CampfireWeb.Mention.nodes(&1, :presentation)}
         {RichText.presentation(tree, ctx), RichText.all_emoji?(plain)}
     end
-  end
-
-  # users/_mention: the final scrub strips sgid, data-turbo-frame and aria-hidden, as in Rails.
-  defp mention(user) do
-    [
-      {"span", [{"class", "mention"}],
-       [
-         {"a",
-          [
-            {"title", Campfire.Accounts.User.title(user)},
-            {"class", "btn avatar"},
-            {"href", "/users/#{user.id}"}
-          ],
-          [
-            {"img",
-             [
-               {"src", CampfireWeb.Components.avatar_path(user)},
-               {"width", "48"},
-               {"height", "48"}
-             ], []}
-          ]},
-         " " <> user.name
-       ]}
-    ]
   end
 
   defp holes, do: :persistent_term.get({__MODULE__, :holes})

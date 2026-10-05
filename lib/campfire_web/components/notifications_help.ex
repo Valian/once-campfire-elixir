@@ -11,13 +11,7 @@ defmodule CampfireWeb.NotificationsHelp do
   attr :root_url, :string, required: true
 
   def help(assigns) do
-    p = assigns.platform
-
-    assigns =
-      assign(assigns,
-        desktop?: Platform.desktop?(p),
-        browser: String.capitalize(p.browser)
-      )
+    assigns = platform_assigns(assigns)
 
     ~H"""
     <.browser_settings {assigns} />
@@ -246,7 +240,11 @@ defmodule CampfireWeb.NotificationsHelp do
     """
   end
 
-  defp install_instructions(%{platform: p} = assigns) do
+  @doc "`pwa/_install_instructions` alone (the profile page shows it too)."
+  attr :platform, Platform, required: true
+
+  def install_instructions(assigns) do
+    %{platform: p} = assigns = platform_assigns(assigns)
     assigns = assign(assigns, :skip?, p.chrome? or (p.firefox? and not p.android?))
 
     ~H"""
@@ -266,7 +264,7 @@ defmodule CampfireWeb.NotificationsHelp do
         <% @platform.edge? -> %>
           <ol>
             <li>
-              Click <em><.image src="install-edge.svg" alt="the app available - install Campfire chat button" size="16" /></em>in the address bar.
+              Click <em><.image src="external/install-edge.svg" alt="the app available - install Campfire chat button" size="16" /></em>in the address bar.
             </li>
             <li>Click <em>Install</em>.</li>
           </ol>
@@ -305,4 +303,7 @@ defmodule CampfireWeb.NotificationsHelp do
     </details>
     """
   end
+
+  defp platform_assigns(%{platform: p} = assigns),
+    do: assign(assigns, desktop?: Platform.desktop?(p), browser: String.capitalize(p.browser))
 end

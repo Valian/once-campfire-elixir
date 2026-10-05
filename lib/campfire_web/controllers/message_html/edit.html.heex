@@ -37,8 +37,8 @@
                   autofocus="autofocus"
                   permitted-attachment-types="application/vnd.campfire.mention application/vnd.actiontext.opengraph-embed"
                   data-action="lexxy:change->typing-notifications#start keydown->composer#submitByKeyboard:capture"
-                  data-direct-upload-url={"#{CampfireWeb.MessageRenderer.base_url(@conn)}/rails/active_storage/direct_uploads"}
-                  data-blob-url-template={"#{CampfireWeb.MessageRenderer.base_url(@conn)}/rails/active_storage/blobs/redirect/:signed_id/:filename"}
+                  data-direct-upload-url={"#{CampfireWeb.Plugs.base_url(@conn)}/rails/active_storage/direct_uploads"}
+                  data-blob-url-template={"#{CampfireWeb.Plugs.base_url(@conn)}/rails/active_storage/blobs/redirect/:signed_id/:filename"}
                   id="message_body"
                   input={"message_body_trix_input_message_#{@message.client_message_id}"}
                   name="message[body]"

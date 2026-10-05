@@ -15,7 +15,6 @@ defmodule Campfire.Messages do
   alias Campfire.Rooms.{Membership, Room}
   alias Campfire.Schema.Timestamp
   alias Campfire.Storage
-  alias Campfire.Storage.{Attachment, Blob}
 
   @page_size 40
   @connection_ttl 60
@@ -269,10 +268,6 @@ defmodule Campfire.Messages do
     )
   end
 
-  @doc "Ids of the room's members (every one gets an unread-room ping on a new message)."
-  def member_ids(room_id),
-    do: Replica.all(from m in Membership, where: m.room_id == ^room_id, select: m.user_id)
-
   ## Update
 
   @doc "Replaces a message's body; touches the message and its room."
@@ -309,7 +304,7 @@ defmodule Campfire.Messages do
 
     {:ok, keys} =
       Repo.transaction(fn ->
-        keys = delete_attachment!(id)
+        keys = Storage.purge_attachments!("Message", id, "attachment")
         Repo.delete_all(from b in Boost, where: b.message_id == ^id)
 
         Repo.delete_all(
@@ -322,55 +317,8 @@ defmodule Campfire.Messages do
         keys
       end)
 
-    Task.start(fn -> Enum.each(keys, &File.rm(Storage.path(&1))) end)
+    Storage.delete_files(keys)
     {:ok, message}
-  end
-
-  # The message's blob, its variants and their blobs. Returns the keys of the files to delete.
-  defp delete_attachment!(message_id) do
-    blob_ids =
-      Repo.all(
-        from a in Attachment,
-          where:
-            a.record_type == "Message" and a.record_id == ^message_id and a.name == "attachment",
-          select: a.blob_id
-      )
-
-    if blob_ids == [] do
-      []
-    else
-      variant_record_ids =
-        Repo.all(
-          from v in Campfire.Storage.VariantRecord, where: v.blob_id in ^blob_ids, select: v.id
-        )
-
-      variant_blob_ids =
-        Repo.all(
-          from a in Attachment,
-            where:
-              a.record_type == "ActiveStorage::VariantRecord" and
-                a.record_id in ^variant_record_ids,
-            select: a.blob_id
-        )
-
-      all_blob_ids = blob_ids ++ variant_blob_ids
-      keys = Repo.all(from b in Blob, where: b.id in ^all_blob_ids, select: b.key)
-
-      Repo.delete_all(
-        from a in Attachment,
-          where:
-            (a.record_type == "Message" and a.record_id == ^message_id) or
-              (a.record_type == "ActiveStorage::VariantRecord" and
-                 a.record_id in ^variant_record_ids)
-      )
-
-      Repo.delete_all(
-        from v in Campfire.Storage.VariantRecord, where: v.id in ^variant_record_ids
-      )
-
-      Repo.delete_all(from b in Blob, where: b.id in ^all_blob_ids)
-      keys
-    end
   end
 
   ## Boosts

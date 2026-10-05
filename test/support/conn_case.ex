@@ -12,6 +12,7 @@ defmodule CampfireWeb.ConnCase do
       import Phoenix.ConnTest
       import Campfire.DataCase, only: [label: 1]
       import CampfireWeb.ConnCase
+      import CampfireWeb.SignedInHelpers
     end
   end
 

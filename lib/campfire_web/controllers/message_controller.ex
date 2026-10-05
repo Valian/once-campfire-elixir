@@ -5,7 +5,7 @@ defmodule CampfireWeb.MessageController do
   alias Campfire.Accounts.User
   alias Campfire.Messages
   alias Campfire.Messages.Message
-  alias Campfire.Rooms.Lookup
+  alias Campfire.Rooms
   alias CampfireWeb.{MessageBroadcasts, MessageRenderer, RoomHTML, TurboStream}
 
   plug :put_room when action != :create
@@ -54,7 +54,7 @@ defmodule CampfireWeb.MessageController do
   def create(conn, %{"room_id" => room_id} = params) do
     user = conn.assigns.current_user
 
-    with %{room: room} <- Lookup.membership(user.id, room_id),
+    with %{room: room} <- Rooms.get_membership(user.id, room_id),
          {:ok, message} <- Messages.create_message(room, user, params["message"] || %{}) do
       MessageBroadcasts.created(conn, message, room)
 
@@ -81,7 +81,11 @@ defmodule CampfireWeb.MessageController do
       message: message,
       room: conn.assigns.room,
       editable:
-        Campfire.RichText.editable(tree, %{users: users, host: nil, mention: &mention_editable/1}),
+        Campfire.RichText.editable(tree, %{
+          users: users,
+          host: nil,
+          mention: &CampfireWeb.Mention.nodes(&1, :editor)
+        }),
       attachment: message.attachment && message.attachment.blob
     )
   end
@@ -105,7 +109,7 @@ defmodule CampfireWeb.MessageController do
 
   # RoomScoped: the user's membership of the room, else 404.
   defp put_room(conn, _) do
-    case Lookup.membership(conn.assigns.current_user.id, conn.params["room_id"]) do
+    case Rooms.get_membership(conn.assigns.current_user.id, conn.params["room_id"]) do
       %{room: room} -> assign(conn, :room, room)
       nil -> conn |> send_resp(404, "") |> halt()
     end
@@ -133,32 +137,6 @@ defmodule CampfireWeb.MessageController do
 
   defp room_not_found do
     ~s(<turbo-frame id="composer-frame">\n  <span class="composer__input input input--actor shake margin-block-end txt-negative txt-align-center" style="--input-border-color: var\(--color-negative\)">\n      <span>This room was deleted.</span>\n  </span>\n</turbo-frame>\n)
-  end
-
-  # The editor gets the mention partial as Rails renders it (sgid included: Lexxy keeps it).
-  defp mention_editable(user) do
-    [
-      {"span", [{"class", "mention"}, {"sgid", Campfire.Signing.sgid("User", user.id)}],
-       [
-         {"a",
-          [
-            {"title", User.title(user)},
-            {"class", "btn avatar"},
-            {"data-turbo-frame", "_top"},
-            {"href", "/users/#{user.id}"}
-          ],
-          [
-            {"img",
-             [
-               {"aria-hidden", "true"},
-               {"src", CampfireWeb.Components.avatar_path(user)},
-               {"width", "48"},
-               {"height", "48"}
-             ], []}
-          ]},
-         " " <> user.name
-       ]}
-    ]
   end
 
   defp fresh?(conn, last_modified) do

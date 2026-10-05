@@ -12,6 +12,7 @@ defmodule Campfire.Application do
         {Phoenix.PubSub, name: Campfire.PubSub},
         CampfireWeb.Cable.Pinger,
         Campfire.Accounts.SessionCache,
+        CampfireWeb.AvatarCache,
         CampfireWeb.RateLimiter,
         CampfireWeb.MessageRenderer,
         CampfireWeb.Endpoint

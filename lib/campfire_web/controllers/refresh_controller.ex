@@ -6,11 +6,11 @@ defmodule CampfireWeb.RefreshController do
   use CampfireWeb, :controller
 
   alias Campfire.Messages
-  alias Campfire.Rooms.Lookup
+  alias Campfire.Rooms
   alias CampfireWeb.{MessageRenderer, RoomHTML, TurboStream}
 
   def show(conn, %{"room_id" => room_id} = params) do
-    case Lookup.membership(conn.assigns.current_user.id, room_id) do
+    case Rooms.get_membership(conn.assigns.current_user.id, room_id) do
       nil ->
         send_resp(conn, 404, "")
 

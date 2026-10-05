@@ -157,13 +157,10 @@
       {{:safe, @messages}}
     </div>
 
-    <turbo-cable-stream-source
+    <.stream_source
       channel="RoomMessagesChannel"
-      signed-stream-name={
-        Campfire.Signing.signed_stream_name(CampfireWeb.Cable.room_messages_stream(@room))
-      }
-    >
-    </turbo-cable-stream-source>
+      stream={CampfireWeb.Cable.room_messages_stream(@room)}
+    />
 
     <button
       class="message-area__return-to-latest btn"

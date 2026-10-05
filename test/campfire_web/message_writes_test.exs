@@ -15,7 +15,7 @@ defmodule CampfireWeb.MessageWritesTest do
   setup %{conn: conn} do
     CampfireWeb.MessageRenderer.clear()
     david = user("david")
-    {:ok, conn: log_in(conn, david), david: david}
+    {:ok, conn: sign_in(conn, david), david: david}
   end
 
   defp post_message(conn, room_id, params) do
@@ -28,8 +28,11 @@ defmodule CampfireWeb.MessageWritesTest do
 
   test "posting a plain-text message as the loadgen does", %{conn: conn, david: david} do
     room = label("rooms.watercooler")
-    subscribe(gid_stream("Rooms::Closed", room))
-    for uid <- [label("users.david"), label("users.jason")], do: subscribe("user_#{uid}_unreads")
+    subscribe_stream(gid_stream("Rooms::Closed", room))
+
+    for uid <- [label("users.david"), label("users.jason")],
+        do: subscribe_stream("user_#{uid}_unreads")
+
     room_before = Repo.get!(Room, room)
 
     conn = post_message(conn, room, %{"body" => "fanout bmk12z", "client_message_id" => "abc123"})
@@ -180,7 +183,7 @@ defmodule CampfireWeb.MessageWritesTest do
     assert edit =~ ~s(<turbo-frame id="edit_message_#{message.client_message_id}">)
     assert edit =~ ~s(aria-label="Edit message")
 
-    subscribe(gid_stream(Room.class_name(room), room.id))
+    subscribe_stream(gid_stream(Room.class_name(room), room.id))
 
     conn =
       conn
@@ -206,7 +209,7 @@ defmodule CampfireWeb.MessageWritesTest do
 
   test "only the creator or an administrator may edit", %{conn: conn} do
     message = Repo.get!(Message, label("messages.first"))
-    kevin = log_in(build_conn(), user("kevin"))
+    kevin = sign_in(build_conn(), user("kevin"))
 
     unless message.creator_id == label("users.kevin") do
       assert kevin
@@ -220,7 +223,7 @@ defmodule CampfireWeb.MessageWritesTest do
   test "deleting a message", %{conn: conn} do
     message = Repo.get!(Message, label("messages.first"))
     room = Repo.get!(Room, message.room_id)
-    subscribe(gid_stream(Room.class_name(room), room.id))
+    subscribe_stream(gid_stream(Room.class_name(room), room.id))
 
     out = conn |> delete(~p"/rooms/#{room.id}/messages/#{message.id}") |> response(200)
 
@@ -235,7 +238,7 @@ defmodule CampfireWeb.MessageWritesTest do
   test "boosts: create (redirect, broadcast, touch) and destroy own", %{conn: conn, david: david} do
     message = Repo.get!(Message, label("messages.unboosted"))
     room = Repo.get!(Room, message.room_id)
-    subscribe(gid_stream(Room.class_name(room), room.id))
+    subscribe_stream(gid_stream(Room.class_name(room), room.id))
 
     conn1 = post(conn, ~p"/messages/#{message.id}/boosts", %{"boost" => %{"content" => "🎉"}})
     assert redirected_to(conn1) == "/messages/#{message.id}/boosts"

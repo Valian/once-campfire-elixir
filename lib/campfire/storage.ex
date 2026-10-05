@@ -191,14 +191,16 @@ defmodule Campfire.Storage do
 
   @doc "Records `variant` (rendered by `render_variant/2`) as the variant of `source`. In a transaction."
   def insert_variant!(%Blob{id: source_id}, transformations, %Blob{} = variant) do
-    variant = insert_blob!(variant)
-
     record =
-      Repo.insert!(%VariantRecord{
-        blob_id: source_id,
-        variation_digest: Variation.digest(transformations)
-      })
+      Repo.insert!(
+        %VariantRecord{blob_id: source_id, variation_digest: Variation.digest(transformations)},
+        on_conflict: :nothing
+      )
 
+    # (blob_id, variation_digest) is unique: someone else's variant is already recorded.
+    if record.id == nil, do: Repo.rollback(:exists)
+
+    variant = insert_blob!(variant)
     attach!(variant, "ActiveStorage::VariantRecord", record.id, "image")
     variant
   end
@@ -227,7 +229,15 @@ defmodule Campfire.Storage do
 
       nil ->
         with {:ok, rendered} <- render_variant(blob, transformations) do
-          Repo.transaction(fn -> insert_variant!(blob, transformations, rendered) end)
+          case Repo.transaction(fn -> insert_variant!(blob, transformations, rendered) end) do
+            {:ok, variant} ->
+              {:ok, variant}
+
+            # A concurrent request recorded it first: serve theirs.
+            {:error, :exists} ->
+              File.rm(path(rendered))
+              {:ok, find_variant(blob.id, transformations)}
+          end
         end
     end
   end
@@ -246,4 +256,47 @@ defmodule Campfire.Storage do
   end
 
   def get_blob(id), do: Replica.get(Blob, id)
+
+  ## Purge
+
+  @doc """
+  Deletes a record's attachments named `name`, their blobs, and the blobs' variants (in the
+  caller's transaction). Returns the keys of the files to delete once it commits.
+  """
+  def purge_attachments!(record_type, record_id, name) do
+    {_, blob_ids} =
+      Repo.delete_all(
+        from(a in Attachment,
+          where: a.record_type == ^record_type and a.record_id == ^record_id and a.name == ^name,
+          select: a.blob_id
+        )
+      )
+
+    purge_blobs!(blob_ids)
+  end
+
+  defp purge_blobs!([]), do: []
+
+  defp purge_blobs!(blob_ids) do
+    {_, record_ids} =
+      Repo.delete_all(from(v in VariantRecord, where: v.blob_id in ^blob_ids, select: v.id))
+
+    {_, variant_blob_ids} =
+      Repo.delete_all(
+        from(a in Attachment,
+          where: a.record_type == "ActiveStorage::VariantRecord" and a.record_id in ^record_ids,
+          select: a.blob_id
+        )
+      )
+
+    {_, keys} =
+      Repo.delete_all(
+        from(b in Blob, where: b.id in ^(blob_ids ++ variant_blob_ids), select: b.key)
+      )
+
+    keys
+  end
+
+  @doc "Removes stored files by key (after the transaction that purged their rows)."
+  def delete_files(keys), do: Enum.each(keys, &File.rm(path(&1)))
 end

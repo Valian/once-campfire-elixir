@@ -1,0 +1,178 @@
+<Layouts.app
+  flash={@flash}
+  current_user={@current_user}
+  turbo_frame={@turbo_frame}
+  title={@user.name}
+>
+  <:nav>
+    <div class="flex-item-justify-start">
+      <.link_back to={@back_url} />
+    </div>
+
+    <div class="flex-item-justify-end">
+      <form data-controller="sessions" action="/session" accept-charset="UTF-8" method="post">
+        <input
+          type="hidden"
+          name="_method"
+          value="delete"
+        /><.csrf_input />
+        <input
+          type="hidden"
+          name="push_subscription_endpoint"
+          id="push_subscription_endpoint"
+          data-sessions-target="pushSubscriptionEndpoint"
+        />
+
+        <button class="btn" data-action="sessions#logout:prevent">
+          <.image src="logout.svg" aria-hidden="true" />
+          <span class="for-screen-reader">Log out</span>
+        </button>
+      </form>
+    </div>
+  </:nav>
+
+  <section
+    class="panel flex flex-column gap"
+    style={"view-transition-name: avatar-#{@user.id}"}
+  >
+    <CampfireWeb.NotificationsHelp.install_instructions platform={@platform} />
+
+    <div class="align-center center avatar__form gap" data-controller="upload-preview">
+      <.profile_form class="txt-medium" multipart>
+        <label class="btn input--file">
+          <.image src="camera.svg" size="20" aria-hidden="true" />
+          <.avatar_input />
+          <span class="for-screen-reader">Upload avatar</span>
+        </label>
+      </.profile_form>
+
+      <.profile_form multipart>
+        <label class="btn avatar input--file txt-xx-large">
+          <img
+            aria-hidden="true"
+            data-upload-preview-target="image"
+            src={avatar_path(@user)}
+            width="300"
+            height="300"
+          />
+          <.avatar_input />
+          <span class="for-screen-reader">Avatar</span>
+        </label>
+      </.profile_form>
+
+      <%= if @avatar? do %>
+        <form class="button_to" method="post" action={"/users/#{@user.id}/avatar"}>
+          <input
+            type="hidden"
+            name="_method"
+            value="delete"
+          /><button class="btn btn--negative txt-small avatar__delete-btn" type="submit">
+            <.image src="minus.svg" size="20" aria-hidden="true" />
+            <span class="for-screen-reader">Delete avatar</span>
+          </button><.csrf_input />
+        </form>
+      <% end %>
+    </div>
+
+    <.profile_form>
+      <div class="flex flex-column gap">
+        <div class="flex align-center gap">
+          <.translation_button key={:user_name} />
+
+          <label class="flex align-center gap flex-item-grow input input--actor">
+            <input
+              class="input txt-large "
+              autocomplete="name"
+              placeholder="Enter your name"
+              autofocus="autofocus"
+              required="required"
+              data-1p-ignore="true"
+              type="text"
+              value={@user.name}
+              name="user[name]"
+              id="user_name"
+            />
+            <.image src="person.svg" size="24" aria-hidden="true" class="colorize--black" />
+          </label>
+        </div>
+
+        <div class="flex align-center gap">
+          <.translation_button key={:email_address} />
+
+          <label class="flex align-center gap flex-item-grow input input--actor">
+            <input
+              class="input txt-large"
+              value={@user.email_address}
+              autocomplete="username"
+              placeholder="Enter your email address"
+              type="email"
+              name="user[email_address]"
+              id="user_email_address"
+            />
+            <.image src="email.svg" size="24" aria-hidden="true" class="colorize--black" />
+          </label>
+        </div>
+
+        <div class="flex align-center gap">
+          <.translation_button key={:update_password} />
+
+          <label class="flex align-center gap flex-item-grow input input--actor">
+            <input
+              class="input txt-large"
+              autocomplete="new-password"
+              placeholder="Change password"
+              maxlength="72"
+              size="72"
+              type="password"
+              name="user[password]"
+              id="user_password"
+            />
+            <.image src="password.svg" size="24" aria-hidden="true" class="colorize--black" />
+          </label>
+        </div>
+
+        <div class="flex align-start gap">
+          <.translation_button key={:bio} />
+
+          <label class="flex align--center gap flex-item--grow input input--actor">
+            <textarea
+              class="input txt-large"
+              placeholder="A few words about yourself…"
+              maxlength="200"
+              rows="3"
+              name="user[bio]"
+              id="user_bio"
+            >{"\n" <> (@user.bio || "")}</textarea>
+            <.image src="bio.svg" size="24" aria-hidden="true" class="colorize--black" />
+          </label>
+        </div>
+
+        <button class="btn btn--reversed center txt-large" type="submit"><.image
+          src="check.svg"
+          size="20"
+          aria-hidden="true"
+        /><span class="for-screen-reader">Save changes</span></button>
+      </div>
+    </.profile_form>
+
+    <div class="margin-block pad-inline pad-block fill-shade border-radius">
+      <menu class="flex flex-column gap margin-none pad">
+        <.membership :for={m <- @shared_memberships} membership={m} name={m.room.name} />
+
+        <hr
+          :if={@direct_memberships != [] and @shared_memberships != []}
+          class="separator full-width"
+          style="--border-style: solid"
+        />
+
+        <.membership
+          :for={m <- @direct_memberships}
+          membership={m}
+          name={Rooms.display_name(m.room, Map.get(@direct_members, m.room_id, []), @user)}
+        />
+      </menu>
+    </div>
+
+    <.transfer user={@user} current_user={@current_user} base_url={@base_url} />
+  </section>
+</Layouts.app>

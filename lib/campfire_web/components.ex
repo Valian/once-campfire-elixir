@@ -133,6 +133,20 @@ defmodule CampfireWeb.Components do
     """
   end
 
+  @doc "Rails `turbo_stream_from`: subscribes the page to an (unsigned) cable stream."
+  attr :stream, :string, required: true
+  attr :channel, :string, default: "Turbo::StreamsChannel"
+
+  def stream_source(assigns) do
+    ~H"""
+    <turbo-cable-stream-source
+      channel={@channel}
+      signed-stream-name={Signing.signed_stream_name(@stream)}
+    >
+    </turbo-cable-stream-source>
+    """
+  end
+
   @doc "The sidebar frame, lazily loaded from `src` (Rails `sidebar_turbo_frame_tag`)."
   attr :src, :string, default: nil
   slot :inner_block
