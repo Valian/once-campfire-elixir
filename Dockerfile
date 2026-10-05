@@ -17,6 +17,8 @@ COPY config/config.exs config/prod.exs config/
 RUN mix deps.compile
 
 COPY priv priv
+# Source maps (and their .gz) are only for devtools: ~3 MB the image needn't carry.
+RUN find priv/static \( -name '*.map' -o -name '*.map.gz' \) -delete
 COPY lib lib
 COPY config/runtime.exs config/
 COPY rel rel

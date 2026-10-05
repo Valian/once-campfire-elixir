@@ -36,8 +36,9 @@ defmodule CampfireWeb.Endpoint do
 
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint]
 
+  # Uploads (message attachments, avatars): Rails sets no limit; 100 MB is plenty for chat.
   plug Plug.Parsers,
-    parsers: [:urlencoded, :multipart, :json],
+    parsers: [:urlencoded, {:multipart, length: 100_000_000}, :json],
     pass: ["*/*"],
     json_decoder: Phoenix.json_library()
 

@@ -45,6 +45,13 @@ defmodule CampfireWeb.Router do
     get "/service-worker.js", PwaController, :service_worker
     get "/webmanifest", PwaController, :manifest
     get "/webmanifest.json", PwaController, :manifest
+
+    get "/account/logo", AccountLogoController, :show
+
+    # Out of scope (SPEC §16).
+    get "/first_run", StubController, :first_run
+    get "/join/:join_code", StubController, :not_found
+    get "/qr_code/:id", StubController, :not_found
   end
 
   scope "/", CampfireWeb do
@@ -71,6 +78,11 @@ defmodule CampfireWeb.Router do
 
     get "/", WelcomeController, :show
     delete "/session", SessionController, :delete
+
+    # Out of scope (SPEC §16); `/rooms/:id/settings` is a 404 in Rails too.
+    get "/account/edit", StubController, :not_found
+    get "/rooms/:room_id/settings", StubController, :not_found
+    post "/unfurl_link", StubController, :no_content
 
     get "/rooms", RoomController, :index
 
