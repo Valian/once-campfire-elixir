@@ -52,11 +52,10 @@ defmodule Campfire.Repo.Setup do
 
   defp reset_presence do
     now = Timestamp.utc_now()
-    cutoff = DateTime.add(now, -60, :second)
 
     Repo.query!(
       "UPDATE memberships SET connected_at = NULL, connections = 0, updated_at = ? WHERE connected_at >= ?",
-      [Timestamp.format(now), Timestamp.format(cutoff)]
+      [Timestamp.format(now), Campfire.Rooms.Presence.cutoff(now)]
     )
   end
 end

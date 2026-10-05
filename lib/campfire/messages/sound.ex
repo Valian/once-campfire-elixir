@@ -63,8 +63,6 @@ defmodule Campfire.Messages.Sound do
   @doc "`{:image, asset, width, height}` or `{:text, text}` for a sound name, or `nil`."
   def find(name), do: Map.get(@sounds, name)
 
-  def names, do: @sounds |> Map.keys() |> Enum.sort()
-
   @doc "The sound a plain-text body plays (`/play name`) as `{name, sound}`, or `nil`."
   def for_text(text) do
     with [_, name] <- Regex.run(~r/\A\/play (\w+)\z/, text),

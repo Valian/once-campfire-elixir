@@ -17,9 +17,6 @@ defmodule Campfire.Messages do
   alias Campfire.Storage
 
   @page_size 40
-  @connection_ttl 60
-
-  def page_size, do: @page_size
 
   ## Pages (Message::Pagination)
   #
@@ -85,24 +82,20 @@ defmodule Campfire.Messages do
     do: Replica.exists?(from m in in_room(room_id), offset: @page_size, select: 1)
 
   def get_in_room(room_id, id) do
-    with {id, ""} <- Integer.parse(to_string(id)) do
+    if id = Campfire.Id.parse(id) do
       Replica.one(from m in in_room(room_id), where: m.id == ^id)
-    else
-      _ -> nil
     end
   end
 
   @doc "A message in one of the user's rooms (Rails `user.reachable_messages.find`)."
   def get_reachable(user_id, id) do
-    with {id, ""} <- Integer.parse(to_string(id)) do
+    if id = Campfire.Id.parse(id) do
       Replica.one(
         from m in Message,
           join: ms in Membership,
           on: ms.room_id == m.room_id and ms.user_id == ^user_id,
           where: m.id == ^id
       )
-    else
-      _ -> nil
     end
   end
 
@@ -256,7 +249,7 @@ defmodule Campfire.Messages do
 
   # Room#unread_memberships: visible, disconnected (no presence for 60 s), not the author.
   defp mark_unread!(room_id, creator_id, now) do
-    cutoff = DateTime.add(now, -@connection_ttl, :second)
+    cutoff = Campfire.Rooms.Presence.connected_since(now)
 
     Repo.update_all(
       from(m in Membership,
@@ -349,13 +342,11 @@ defmodule Campfire.Messages do
   end
 
   def get_own_boost(%Message{id: message_id}, %User{id: user_id}, id) do
-    with {id, ""} <- Integer.parse(to_string(id)) do
+    if id = Campfire.Id.parse(id) do
       Replica.one(
         from b in Boost,
           where: b.id == ^id and b.message_id == ^message_id and b.booster_id == ^user_id
       )
-    else
-      _ -> nil
     end
   end
 

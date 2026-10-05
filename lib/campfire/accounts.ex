@@ -122,22 +122,8 @@ defmodule Campfire.Accounts do
   end
 
   def get_user(id) do
-    case parse_id(id) do
-      nil -> nil
-      id -> Replica.get(User, id)
-    end
+    if id = Campfire.Id.parse(id), do: Replica.get(User, id)
   end
-
-  defp parse_id(id) when is_integer(id), do: id
-
-  defp parse_id(id) when is_binary(id) do
-    case Integer.parse(id) do
-      {id, ""} -> id
-      _ -> nil
-    end
-  end
-
-  defp parse_id(_), do: nil
 
   @doc """
   Rails `ProfilesController#update`: name, email, password, bio. Blank email and password
@@ -170,7 +156,6 @@ defmodule Campfire.Accounts do
   rescue
     # The unique index on email_address.
     Ecto.ConstraintError -> {:error, :email_taken}
-    Exqlite.Error -> {:error, :email_taken}
   end
 
   defp present(value) when is_binary(value),
@@ -290,29 +275,32 @@ defmodule Campfire.Accounts do
     auth = attrs["auth_key"]
     now = Timestamp.utc_now()
 
-    if valid_push_endpoint?(endpoint) do
-      existing =
-        Repo.one(
-          from s in Subscription,
-            where:
-              s.user_id == ^user_id and s.endpoint == ^endpoint and s.p256dh_key == ^p256dh and
-                s.auth_key == ^auth,
-            limit: 1
-        )
+    if valid_push_endpoint?(endpoint) and is_binary(p256dh) and is_binary(auth) do
+      # Find-or-create in one writer transaction, so a double submit can't insert twice.
+      Repo.transaction(fn ->
+        existing =
+          Repo.one(
+            from s in Subscription,
+              where:
+                s.user_id == ^user_id and s.endpoint == ^endpoint and s.p256dh_key == ^p256dh and
+                  s.auth_key == ^auth,
+              limit: 1
+          )
 
-      case existing do
-        %Subscription{} = s ->
-          s |> Ecto.Changeset.change(updated_at: now) |> Repo.update!()
+        case existing do
+          %Subscription{} = s ->
+            s |> Ecto.Changeset.change(updated_at: now) |> Repo.update!()
 
-        nil ->
-          Repo.insert!(%Subscription{
-            user_id: user_id,
-            endpoint: endpoint,
-            p256dh_key: p256dh,
-            auth_key: auth,
-            user_agent: user_agent
-          })
-      end
+          nil ->
+            Repo.insert!(%Subscription{
+              user_id: user_id,
+              endpoint: endpoint,
+              p256dh_key: p256dh,
+              auth_key: auth,
+              user_agent: user_agent
+            })
+        end
+      end)
 
       :ok
     else
@@ -321,9 +309,8 @@ defmodule Campfire.Accounts do
   end
 
   def delete_push_subscription_by_id(%User{id: user_id}, id) do
-    Repo.delete_all(
-      from s in Subscription, where: s.user_id == ^user_id and s.id == ^parse_id(id)
-    )
+    if id = Campfire.Id.parse(id),
+      do: Repo.delete_all(from s in Subscription, where: s.user_id == ^user_id and s.id == ^id)
 
     :ok
   end

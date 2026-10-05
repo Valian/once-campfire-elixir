@@ -29,13 +29,11 @@ defmodule CampfireWeb.RefreshController do
                 MessageRenderer.render(new, ctx)
               )
 
+        # One render call for all of them: cache misses are preloaded together.
         replaced =
-          for message <- updated,
-              do:
-                TurboStream.replace(
-                  "message_#{message.client_message_id}",
-                  MessageRenderer.render_one(message, ctx)
-                )
+          Enum.zip_with(updated, MessageRenderer.render(updated, ctx), fn message, html ->
+            TurboStream.replace("message_#{message.client_message_id}", html)
+          end)
 
         TurboStream.send(conn, [appended, replaced])
     end
@@ -44,9 +42,11 @@ defmodule CampfireWeb.RefreshController do
   # `Time.at(0, since.to_i, :millisecond)`: anything unparseable is the epoch.
   defp since(value) do
     ms =
-      case Integer.parse(to_string(value)) do
-        {ms, _} -> ms
-        :error -> 0
+      with value when is_binary(value) <- value,
+           {ms, _} <- Integer.parse(value) do
+        ms
+      else
+        _ -> 0
       end
 
     case DateTime.from_unix(ms, :millisecond) do

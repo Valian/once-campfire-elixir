@@ -17,7 +17,6 @@ defmodule Campfire.RichText.Attachments do
   # Rails matches the content type with an unescaped pattern, dots and all.
   @opengraph_re ~r/application\/vnd.actiontext.opengraph-embed/
 
-  def tag, do: "action-text-attachment"
   def opengraph_content_type, do: @opengraph
   def mention_content_type, do: @mention
 

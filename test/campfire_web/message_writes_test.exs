@@ -156,6 +156,9 @@ defmodule CampfireWeb.MessageWritesTest do
     ranged = build_conn() |> put_req_header("range", "bytes=0-9") |> get(original)
     assert ranged.status == 206
     assert byte_size(ranged.resp_body) == 10
+
+    # A malformed range is ignored, not a 500.
+    assert (build_conn() |> put_req_header("range", "bytes=5") |> get(original)).status == 200
   end
 
   test "seed attachments are served (and a missing variant is generated)", %{conn: conn} do

@@ -54,11 +54,6 @@ defmodule CampfireWeb.Plugs do
 
   @doc "The room id in Rails' permanent `last_room` cookie (set by the room page), or `nil`."
   def last_room_id(conn) do
-    with value when is_binary(value) <- fetch_cookies(conn).cookies["last_room"],
-         {id, ""} <- Integer.parse(value) do
-      id
-    else
-      _ -> nil
-    end
+    Campfire.Id.parse(fetch_cookies(conn).cookies["last_room"])
   end
 end

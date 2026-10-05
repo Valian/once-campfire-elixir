@@ -17,7 +17,6 @@ database and Active Storage directory, unchanged. `docs/SPEC.md` is the contract
 | `Campfire.Messages` | pages (`last_page/1`, `page_around/2`, before/after), `preload_presentation/2`, create/update/destroy, boosts |
 | `Campfire.RichText` (+ `HTML`, `Sanitizer`, `Attachments`, `Autolink`, `PlainText`) | Action Text bodies → presentation / plain text / editor value over one LazyHTML-parsed tree (§9) |
 | `Campfire.Storage` (+ `Files`, `Variation`) | Active Storage: keys and paths, signed blob/variation URLs, `store_upload/1`, variants (`ensure_variant/2`, libvips via vix), `purge_attachments!/3` |
-| `Campfire.Rooms.Presence` | `memberships.connections`/`connected_at` transitions (present/absent/refresh), one `UPDATE` each |
 | `Campfire.Signing` | Rails MessageVerifier: `signed_id/2`, `signed_stream_name/1`, `gid_param/2`, `sgid/2`, plus `envelope/3` + `sign/4` + `verify/4` for Active Storage |
 | `CampfireWeb.Endpoint` | `/up` (before everything), `/assets` (Plug.Static, `.gz` siblings, immutable), parsers, cookie session `_campfire_session` |
 | `CampfireWeb.Router` | `:browser` pipeline (+ `:authenticated`) |

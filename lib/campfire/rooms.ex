@@ -46,30 +46,21 @@ defmodule Campfire.Rooms do
   `room_scope` does (open/closed controllers can't reach directs and vice versa).
   """
   def get_room_for_user(user_id, room_id, types \\ [:open, :closed, :direct]) do
-    with {id, ""} <- parse_id(room_id) do
-      Replica.one(from r in for_user(user_id), where: r.id == ^id and r.type in ^types)
-    else
-      _ -> nil
-    end
+    if id = Campfire.Id.parse(room_id),
+      do: Replica.one(from r in for_user(user_id), where: r.id == ^id and r.type in ^types)
   end
 
   @doc "The user's membership of a room, with the room preloaded; `nil` if not a member."
   def get_membership(user_id, room_id) do
-    with {id, ""} <- parse_id(room_id) do
+    if id = Campfire.Id.parse(room_id) do
       Replica.one(
         from m in Membership,
           join: r in assoc(m, :room),
           where: m.user_id == ^user_id and m.room_id == ^id,
           preload: [room: r]
       )
-    else
-      _ -> nil
     end
   end
-
-  defp parse_id(id) when is_integer(id), do: {id, ""}
-  defp parse_id(id) when is_binary(id), do: Integer.parse(id)
-  defp parse_id(_), do: :error
 
   @doc "Active users, `ORDER BY LOWER(name)` (Rails `User.active.ordered`)."
   def active_users do
@@ -285,34 +276,35 @@ defmodule Campfire.Rooms do
   Returns `{:existing | :created, room}`.
   """
   def find_or_create_direct_room(%User{} = creator, user_ids) do
-    ids = existing_user_ids([creator.id | user_ids])
-    count = length(ids)
+    # Look up and insert in one writer transaction: two quick submits make one room.
+    transact(fn ->
+      ids = existing_user_ids([creator.id | user_ids])
+      count = length(ids)
 
-    existing =
-      Replica.one(
-        from r in Room,
-          join: m in Membership,
-          on: m.room_id == r.id,
-          where: r.type == ^:direct,
-          group_by: r.id,
-          having:
-            count(m.id) == ^count and
-              fragment("SUM(CASE WHEN ? THEN 1 ELSE 0 END)", m.user_id in ^ids) == ^count,
-          order_by: r.id,
-          limit: 1
-      )
+      existing =
+        Repo.one(
+          from r in Room,
+            join: m in Membership,
+            on: m.room_id == r.id,
+            where: r.type == ^:direct,
+            group_by: r.id,
+            having:
+              count(m.id) == ^count and
+                fragment("SUM(CASE WHEN ? THEN 1 ELSE 0 END)", m.user_id in ^ids) == ^count,
+            order_by: r.id,
+            limit: 1
+        )
 
-    case existing do
-      %Room{} = room ->
-        {:existing, room}
+      case existing do
+        %Room{} = room ->
+          {:existing, room}
 
-      nil ->
-        transact(fn ->
+        nil ->
           room = insert_room!(:direct, nil, creator)
           grant!(room, ids)
           {:created, room}
-        end)
-    end
+      end
+    end)
   end
 
   @doc """
@@ -447,20 +439,9 @@ defmodule Campfire.Rooms do
   end
 
   defp existing_user_ids(ids) do
-    ids = ids |> Enum.flat_map(&List.wrap(parse_user_id(&1))) |> Enum.uniq()
+    ids = ids |> Enum.map(&Campfire.Id.parse/1) |> Enum.reject(&is_nil/1) |> Enum.uniq()
     Repo.all(from u in User, where: u.id in ^ids, select: u.id, order_by: u.id)
   end
-
-  defp parse_user_id(id) when is_integer(id), do: id
-
-  defp parse_user_id(id) when is_binary(id) do
-    case Integer.parse(id) do
-      {id, ""} -> id
-      _ -> nil
-    end
-  end
-
-  defp parse_user_id(_), do: nil
 
   defp transact(fun) do
     {:ok, result} = Repo.transaction(fun)

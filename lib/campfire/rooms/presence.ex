@@ -16,8 +16,10 @@ defmodule Campfire.Rooms.Presence do
   Memberships with `connected_at >= cutoff()` are connected (message creation marks the
   others unread). A Rails-format text timestamp, for binding.
   """
-  def cutoff(now \\ Timestamp.utc_now()),
-    do: now |> DateTime.add(-@ttl_seconds, :second) |> Timestamp.format()
+  def cutoff(now \\ Timestamp.utc_now()), do: now |> connected_since() |> Timestamp.format()
+
+  @doc "`cutoff/1` as a `DateTime`, for Ecto queries on `connected_at`."
+  def connected_since(now), do: DateTime.add(now, -@ttl_seconds, :second)
 
   @doc "Opened the room (subscribe or `present` action): count it, connect, mark read."
   def present(membership_id) do

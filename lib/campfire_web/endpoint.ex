@@ -11,8 +11,6 @@ defmodule CampfireWeb.Endpoint do
     http_only: true
   ]
 
-  def session_options, do: @session_options
-
   # Health check: before statics, sessions and the router, no DB.
   plug :up
 

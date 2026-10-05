@@ -133,16 +133,9 @@ defmodule CampfireWeb.Cable.Channels do
     )
   end
 
-  defp room_id(id) when is_integer(id), do: {:ok, id}
-
-  defp room_id(id) when is_binary(id) do
-    case Integer.parse(id) do
-      {id, ""} -> {:ok, id}
-      _ -> :error
-    end
+  defp room_id(id) do
+    if id = Campfire.Id.parse(id), do: {:ok, id}, else: :error
   end
-
-  defp room_id(_), do: :error
 
   # GlobalID::Locator.locate(param, only: Room): a gid URI or its base64 param. The STI class
   # must match the room's (Rooms::Closed.find raises for an open room's id); checked by the

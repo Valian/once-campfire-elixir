@@ -5,7 +5,10 @@ defmodule CampfireWeb.SessionController do
   alias CampfireWeb.{Plugs, RateLimiter, UserAuth}
 
   def new(conn, params) do
-    render(conn, :new, email_address: params["email_address"])
+    render(conn, :new,
+      email_address: params["email_address"],
+      owner: Accounts.first_administrator()
+    )
   end
 
   def create(conn, params) do
@@ -37,6 +40,6 @@ defmodule CampfireWeb.SessionController do
     conn
     |> put_status(status)
     |> put_flash(:alert, "Too many requests or unauthorized.")
-    |> render(:new, email_address: params["email_address"])
+    |> render(:new, email_address: params["email_address"], owner: Accounts.first_administrator())
   end
 end

@@ -122,6 +122,9 @@ defmodule CampfireWeb.ActiveStorageController do
         else
           _ -> :ignore
         end
+
+      _ ->
+        :ignore
     end
   end
 end
