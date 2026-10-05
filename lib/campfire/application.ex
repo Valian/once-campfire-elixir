@@ -4,6 +4,8 @@ defmodule Campfire.Application do
 
   @impl true
   def start(_type, _args) do
+    :ok = CampfireWeb.AssetCache.load()
+
     children =
       [
         Campfire.Repo,

@@ -14,7 +14,10 @@ defmodule CampfireWeb.Endpoint do
   # Health check: before statics, sessions and the router, no DB.
   plug :up
 
-  # Rails' digested assets (bin/extract-assets). Digests make them immutable.
+  # Rails' digested assets (bin/extract-assets). Digests make them immutable. Stylesheets and
+  # scripts come from memory; the rest (images, sounds) from disk.
+  plug CampfireWeb.AssetCache
+
   plug Plug.Static,
     at: "/assets",
     from: {:campfire, "priv/static/assets"},
